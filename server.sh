@@ -17,7 +17,7 @@ function send_cmd () {
 }
 
 function server_start() {
-	screen -list $SCREEN_WINDOW
+	screen -list $SCREEN_WINDOW > /dev/null
 	if [ $? -eq 0 ]
 	then
 		echo "It seems a server is already running. If this is not the case,\
@@ -42,7 +42,7 @@ function server_attach() {
 }
 
 function server_status() {
-	screen -list $SCREEN_WINDOW
+	screen -list $SCREEN_WINDOW > /dev/null
 
 	if [ $? -eq 0 ]
 	then
