@@ -2,7 +2,7 @@
 
 #CONFIG
 JRE_JAVA="java"
-JVM_ARGS="-Xms10G -Xmx10G" 
+JVM_ARGS="-Xms512M -Xmx512M" 
 JAR="server.jar"
 JAR_ARGS="-nogui"
 SCREEN_WINDOW="minecraftserverscreen"
@@ -10,7 +10,11 @@ WORLD_NAME="world"
 LOGFILE="mcserver.log"
 
 #HOOKS
-BACKUP_HOOK="echo $ARCHNAME"
+BACKUP_HOOK='backup_hook_example'
+
+function backup_hook_example {
+	echo $ARCHNAME
+}
 
 function send_cmd () {
 	screen -S $SCREEN_WINDOW -p 0 -X stuff "$1^M"
@@ -23,6 +27,12 @@ function server_start() {
 		echo "It seems a server is already running. If this is not the case,\
 			manually attach to the running screen and close it."
 		exit 1
+	fi
+
+	if [ ! -e "eula.txt" ]
+	then
+		echo "eula.txt not found. Creating and accepting EULA."
+		echo "eula=true" > eula.txt
 	fi
 
 	rm -f $LOGFILE
@@ -48,8 +58,8 @@ function server_status() {
 	then
 		echo "Server seems to be running. attach to be sure"
 	else
-	fi
 		echo "Server is not running"
+	fi
 	exit
 }
 
@@ -93,7 +103,7 @@ function server_backup_unsafe() {
 
 function create_backup_archive() {
 	ARCHNAME="backup/$WORLD_NAME-backup_`date +%d-%m-%y-%T`.tar.gz"
-	tar -czvf "$ARCHNAME" "./$WORLD_NAME"
+	tar -czf "$ARCHNAME" "./$WORLD_NAME"
 
 	if [ ! $? -eq 0 ]
 	then
@@ -117,6 +127,8 @@ function server_backup() {
 	exit
 }
 
+cd $(dirname $0)
+
 case $1 in
 	"start")
 		server_start
@@ -136,4 +148,4 @@ case $1 in
 	*)
 		echo "Usage: $0 start|stop|attach|status|backup"
 		;;
-esac	
+esac
