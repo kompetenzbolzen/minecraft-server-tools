@@ -2,24 +2,48 @@
 
 My minecraft server management script with safe online Backup.
 
+## Configuration
+
+Config-variables are located at the top of `server.sh`
+
 ## Usage
 
-`./server.sh start|stop|attach|status`
+`./server.sh start|stop|attach|status|backup`
 
-`attach` attaches to the server console using `screen`. to detach, type: `CTRL+A d`
+### start
 
-Configuration is located at at the top of the script. 
+Creates a `screen` session and starts a minecraft server within.
+Fails, if a session is already running with the same sessionname.
+
+### stop
+
+Sends `stop` command to running server instance to safely shut down.
+
+### attach
+
+attaches to `screen` session. Exit with `CTRL + A d`
+
+### status
+
+lists active screen sessions with `SCREEN_SESSIONNAME`.
+
+### backup
+
+Backs up the world as a `tar.gz` archive in `./backup/`.
+If a running server is detected,
+the world is flushed to disk and autosave is disabled temporarily to prevent chunk corruption.
 
 The command specified in `$BACKUP_HOOK` is
-executed on every backup. `$ARCHNAME` contains the relative path to the backup.
+executed on every successful backup. `$ARCHNAME` contains the relative path to the archive.
+This can be used to further process the created backup.
 
-Example:
+The following example copies the created archive to a remote server.
 
-    scp $ARCHNAME user@server:/home/backups/
+    BACKUP_HOOK="scp $ARCHNAME user@server:/home/user/backups/"
 
 ## Disclaimer
 
 The scripts are provided as-is at no warranty.
-They are not idiot-proof.
+They are in no way idiot-proof.
 
 Improvements are welcome.
