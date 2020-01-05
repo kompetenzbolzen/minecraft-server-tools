@@ -37,10 +37,6 @@ The command specified in `$BACKUP_HOOK` is
 executed on every successful backup. `$ARCHNAME` contains the relative path to the archive.
 This can be used to further process the created backup.
 
-The following example copies the created archive to a remote server.
-
-    BACKUP_HOOK="scp $ARCHNAME user@server:/home/user/backups/"
-
 ## Start automatically
 
 Create user and group `minecraft` with home in `/var/minecraft`.
