@@ -1,0 +1,16 @@
+# minecraft.service
+
+[Unit] 
+Description=Minecraft Server
+
+[Service]
+Type=forking
+User=minecraft
+Group=minecraft
+PIDFile=/var/minecraft/server-screen.pid
+ExecStart=/var/minecraft/server.sh start
+TimeoutStopSec= 180
+ExecStop=/var/minecraft/server.sh stop
+
+[Install]
+WantedBy=multi-user.target

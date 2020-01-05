@@ -7,8 +7,8 @@ JAR="server.jar"
 JAR_ARGS="-nogui"
 SCREEN_WINDOW="minecraftserverscreen"
 WORLD_NAME="world"
-LOGFILE="mcserver.log"
-
+LOGFILE="server-screen.log"
+PIDFILE="server-screen.pid"
 #HOOKS
 BACKUP_HOOK='backup_hook_example'
 
@@ -20,14 +20,36 @@ function send_cmd () {
 	screen -S $SCREEN_WINDOW -p 0 -X stuff "$1^M"
 }
 
-function server_start() {
-	screen -list $SCREEN_WINDOW > /dev/null
+function assert_running() {
+	if [ ! -e $PIDFILE ]; then
+		return
+	fi
+
+	ps -p $(cat $PIDFILE) > /dev/null
 	if [ $? -eq 0 ]
 	then
 		echo "It seems a server is already running. If this is not the case,\
 			manually attach to the running screen and close it."
 		exit 1
 	fi
+}
+
+function assert_not_running() {
+	if [ ! -e $PIDFILE ]; then
+		echo "Server not running"
+		exit 1
+	fi
+
+	ps -p $(cat $PIDFILE) > /dev/null
+	if [ ! $? -eq 0 ]
+	then
+		echo "Server not running"
+		exit 1
+	fi
+}
+
+function server_start() {
+	assert_running
 
 	if [ ! -e "eula.txt" ]
 	then
@@ -36,27 +58,44 @@ function server_start() {
 	fi
 
 	rm -f $LOGFILE
-	screen -L -Logfile "$LOGFILE" -S $SCREEN_WINDOW -p 0 -d -m \
-		$JRE_JAVA $JVM_ARGS -jar $JAR $JAR_ARGS
+	screen -L -Logfile "$LOGFILE" -S $SCREEN_WINDOW -p 0 -D -m \
+		$JRE_JAVA $JVM_ARGS -jar $JAR $JAR_ARGS > /dev/null &
+	echo $! > $PIDFILE
+	echo Started with PID $!
 	exit
 }
 
 function server_stop() {
+	assert_not_running
 	send_cmd "stop"
+
+	local RET=1
+	while [ ! $RET -eq 0 ]
+	do
+		sleep 1
+		ps -p $(cat $PIDFILE) > /dev/null
+		RET=$?
+	done
+
+	echo "stopped the server"
+
+	rm -f $PIDFILE
+
 	exit
 }
 
 function server_attach() {
+	assert_not_running
 	screen -r -p 0 $SCREEN_WINDOW
 	exit
 }
 
 function server_status() {
-	screen -list $SCREEN_WINDOW > /dev/null
+	ps -p $(cat $PIDFILE) > /dev/null
 
 	if [ $? -eq 0 ]
 	then
-		echo "Server seems to be running. attach to be sure"
+		echo "Server is running"
 	else
 		echo "Server is not running"
 	fi

@@ -41,6 +41,14 @@ The following example copies the created archive to a remote server.
 
     BACKUP_HOOK="scp $ARCHNAME user@server:/home/user/backups/"
 
+## Start automatically
+
+Create user and group `minecraft` with home in `/var/minecraft`.
+Populate the directory with server.sh and a server jar.
+Place `minecraft.service` in `/etc/systemd/system/`
+and run `systemctl start minecraft` to start once or
+`systemctl enable minecraft` to enable autostarting.
+
 ## Disclaimer
 
 The scripts are provided as-is at no warranty.
