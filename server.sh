@@ -2,32 +2,27 @@
 
 #CONFIG
 JRE_JAVA="java"
-JVM_ARGS="-Xms512M -Xmx512M" 
-JAR="server.jar"
+JVM_ARGS="-Xms4096M -Xmx6144M" 
+JAR="minecraft_server.jar"
 JAR_ARGS="-nogui"
-SCREEN_WINDOW="minecraftserverscreen"
+SCREEN_WINDOW="minecraft"
 WORLD_NAME="world"
-LOGFILE="server-screen.log"
+BACKUP_NAME="mc-sad-squad"
+LOGFILE="logs/latest.log"
 PIDFILE="server-screen.pid"
 #HOOKS
 BACKUP_HOOK='backup_hook_example'
 
 function backup_hook_example {
-	echo $ARCHNAME
+	bup -d $CUR_BACK_DIR ls $BACKUP_NAME
 }
 
 function send_cmd () {
-	screen -S $SCREEN_WINDOW -p 0 -X stuff "$1^M"
+	tmux send -t $SCREEN_WINDOW "$1" enter
 }
 
 function assert_running() {
-	if [ ! -e $PIDFILE ]; then
-		return
-	fi
-
-	ps -p $(cat $PIDFILE) > /dev/null
-	if [ $? -eq 0 ]
-	then
+	if server_running; then
 		echo "It seems a server is already running. If this is not the case,\
 			manually attach to the running screen and close it."
 		exit 1
@@ -35,14 +30,7 @@ function assert_running() {
 }
 
 function assert_not_running() {
-	if [ ! -e $PIDFILE ]; then
-		echo "Server not running"
-		exit 1
-	fi
-
-	ps -p $(cat $PIDFILE) > /dev/null
-	if [ ! $? -eq 0 ]
-	then
+	if ! server_running; then
 		echo "Server not running"
 		exit 1
 	fi
@@ -51,21 +39,24 @@ function assert_not_running() {
 function server_start() {
 	assert_running
 
-	if [ ! -e "eula.txt" ]
+	if [ ! -f "eula.txt" ]
 	then
 		echo "eula.txt not found. Creating and accepting EULA."
-		echo "eula=true" > eula.txt
+		echo "eula=true" > "eula.txt"
 	fi
 
-	rm -f $LOGFILE
-	screen -L -Logfile "$LOGFILE" -S $SCREEN_WINDOW -p 0 -D -m \
-		$JRE_JAVA $JVM_ARGS -jar $JAR $JAR_ARGS > /dev/null &
-	echo $! > $PIDFILE
-	echo Started with PID $!
+	tmux new-session -s $SCREEN_WINDOW -d \
+		$JRE_JAVA $JVM_ARGS -jar $JAR $JAR_ARGS
+	pid=`tmux list-panes -t $SCREEN_WINDOW -F "#{pane_pid}"`
+	echo $pid > $PIDFILE
+	echo Started with PID $pid
 	exit
 }
 
 function server_stop() {
+	# Allow success even if server is not running
+	#trap "exit 0" EXIT
+
 	assert_not_running
 	send_cmd "stop"
 
@@ -86,14 +77,19 @@ function server_stop() {
 
 function server_attach() {
 	assert_not_running
-	screen -r -p 0 $SCREEN_WINDOW
+	tmux attach -t $SCREEN_WINDOW
 	exit
 }
 
-function server_status() {
-	ps -p $(cat $PIDFILE) > /dev/null
+function server_running() {
+	[ -f $PIDFILE ] && [ "$(cat $PIDFILE)" != "" ]
+	return # Returns the status of above conditional. Failure (1) if false, Success (0) if true.
 
-	if [ $? -eq 0 ]
+	ps -p $(cat $PIDFILE) > /dev/null
+}
+
+function server_status() {
+	if server_running
 	then
 		echo "Server is running"
 	else
@@ -113,9 +109,10 @@ function server_backup_safe() {
 	do
 		sleep 1
 	done
+	sleep 2
 	echo "Done! starting backup..."
 
-	create_backup_archive
+	create_bup_backup
 	local RET=$?
 
 	echo "Re-enabling auto-save"
@@ -131,7 +128,7 @@ function server_backup_safe() {
 function server_backup_unsafe() {
 	echo "No running server detected. Running Backup"
 
-	create_backup_archive
+	create_bup_backup
 
 	if [ $? -eq 0 ]
 	then
@@ -140,6 +137,29 @@ function server_backup_unsafe() {
 	fi
 }
 
+function create_bup_backup() {
+	BACKUP_DIR="mc-backups"
+	CUR_YEAR=`date +"%Y"`
+	CUR_BACK_DIR="mc-backups/$CUR_YEAR"
+
+	if [ ! -d "$CUR_BACK_DIR" ]; then
+	mkdir -p "$CUR_BACK_DIR"
+	fi
+
+
+	bup -d "$CUR_BACK_DIR" index "$WORLD_NAME"
+	status=$?
+	if [ $status -eq 1 ]; then
+	bup -d "$CUR_BACK_DIR" init
+	bup -d "$CUR_BACK_DIR" index "$WORLD_NAME"
+	fi
+
+	bup -d "$CUR_BACK_DIR" save -n "$BACKUP_NAME" "$WORLD_NAME"
+
+	echo "Backup using bup to $CUR_BACK_DIR is complete"
+}
+
+# Deprecated
 function create_backup_archive() {
 	ARCHNAME="backup/$WORLD_NAME-backup_`date +%d-%m-%y-%T`.tar.gz"
 	tar -czf "$ARCHNAME" "./$WORLD_NAME"
@@ -155,11 +175,9 @@ function create_backup_archive() {
 }
 
 function server_backup() {
-	screen -list $SCREEN_WINDOW > /dev/null
-	if [ $? -eq 0 ]
-	then #Server is running
+	if server_running; then 
 		server_backup_safe
-	else #Not running
+	else 
 		server_backup_unsafe
 	fi
 
@@ -181,6 +199,7 @@ case $1 in
 	"backup")
 		server_backup
 		;;
+	# TODO: Add restore command
 	"status")
 		server_status
 		;;

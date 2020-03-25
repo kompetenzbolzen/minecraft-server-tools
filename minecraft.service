@@ -5,12 +5,16 @@ Description=Minecraft Server
 
 [Service]
 Type=forking
-User=minecraft
-Group=minecraft
+User=minecraftuser
+Group=minecraftuser
 PIDFile=/var/minecraft/server-screen.pid
+Restart=on-failure
+RestartSec=30s
 ExecStart=/var/minecraft/server.sh start
 TimeoutStopSec= 180
 ExecStop=/var/minecraft/server.sh stop
+StartLimitInterval=10min
+StartLimitBurst=2
 
 [Install]
 WantedBy=multi-user.target
