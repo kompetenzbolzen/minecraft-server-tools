@@ -13,8 +13,6 @@ RestartSec=30s
 ExecStart=/var/minecraft/server.sh start
 TimeoutStopSec= 180
 ExecStop=/var/minecraft/server.sh stop
-StartLimitInterval=10min
-StartLimitBurst=2
 
 [Install]
 WantedBy=multi-user.target
