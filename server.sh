@@ -183,7 +183,7 @@ function create_bup_backup() {
 	echo "Backup using bup to $CUR_BACK_DIR is complete"
 }
 
-# Deprecated
+# TODO: Make default .tar with optional bup
 function create_backup_archive() {
 	ARCHNAME="backup/$WORLD_NAME-backup_`date +%d-%m-%y-%T`.tar.gz"
 	tar -czf "$ARCHNAME" "./$WORLD_NAME"
