@@ -10,11 +10,15 @@ WORLD_NAME="world"
 BACKUP_NAME="mc-sad-squad"
 LOGFILE="logs/latest.log"
 PIDFILE="server-screen.pid"
+
 #HOOKS
 BACKUP_HOOK='backup_hook_example'
 
+#Constants
+CUR_YEAR=`date +"%Y"`
+
 function backup_hook_example {
-	bup -d $CUR_BACK_DIR ls $BACKUP_NAME
+	bup -d $CUR_BACK_DIR ls -l $BACKUP_NAME/latest/var/minecraft
 }
 
 function send_cmd () {
@@ -82,10 +86,12 @@ function server_attach() {
 }
 
 function server_running() {
-	[ -f $PIDFILE ] && [ "$(cat $PIDFILE)" != "" ]
-	return # Returns the status of above conditional. Failure (1) if false, Success (0) if true.
-
-	ps -p $(cat $PIDFILE) > /dev/null
+	if [ -f $PIDFILE ] && [ "$(cat $PIDFILE)" != "" ]; then
+		ps -p $(cat $PIDFILE) > /dev/null
+		return
+	fi
+	
+	false
 }
 
 function server_status() {
@@ -98,10 +104,29 @@ function server_status() {
 	exit
 }
 
+function players_online() {
+	send_cmd "list"
+	sleep 1
+	while [ $(tail -n 3 "$LOGFILE" | grep -c "There are") -lt 1 ]
+	do
+		sleep 1
+	done
+
+	[ `tail -n 3 "$LOGFILE" | grep -c "There are 0"` -lt 1 ]
+}
+
+
 function server_backup_safe() {
-	echo "Detected running server. Disabling autosave"
+	force=$1
+	echo "Detected running server. Checking if players online..."
+	if [ "$force" != "true" ] && ! players_online; then
+		echo "Players are not online. Not backing up."
+		return
+	fi
+
+	echo "Disabling autosave"
 	send_cmd "save-off"
-	send_cmd "save-all flush"
+	send_cmd "save-all"
 	echo "Waiting for save... If froze, run /save-on to re-enable autosave!!"
 	
 	sleep 1
@@ -139,7 +164,6 @@ function server_backup_unsafe() {
 
 function create_bup_backup() {
 	BACKUP_DIR="mc-backups"
-	CUR_YEAR=`date +"%Y"`
 	CUR_BACK_DIR="mc-backups/$CUR_YEAR"
 
 	if [ ! -d "$CUR_BACK_DIR" ]; then
@@ -174,14 +198,40 @@ function create_backup_archive() {
 	fi
 }
 
+function backup_running() {
+	systemctl is-active --quiet mc-backup.service
+}
+
+function fbackup_running() {
+	systemctl is-active --quiet mc-fbackup.service
+}
+
 function server_backup() {
+	force=$1
+
+	if [ "$force" = "true" ]; then
+        if backup_running; then
+            echo "A backup is running. Aborting..."
+            return
+        fi
+    else
+        if fbackup_running; then
+            echo "A force backup is running. Aborting..."
+            return
+        fi
+	fi
+
 	if server_running; then 
-		server_backup_safe
+		server_backup_safe "$force"
 	else 
 		server_backup_unsafe
 	fi
 
 	exit
+}
+
+function ls_bup() {
+	bup -d "mc-backups/${CUR_YEAR}" ls "mc-sad-squad/$1"
 }
 
 cd $(dirname $0)
@@ -202,6 +252,12 @@ case $1 in
 	# TODO: Add restore command
 	"status")
 		server_status
+		;;
+	"fbackup")
+		server_backup "true"
+		;;
+	"ls")
+		ls_bup $2
 		;;
 	*)
 		echo "Usage: $0 start|stop|attach|status|backup"

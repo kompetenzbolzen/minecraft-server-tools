@@ -1,0 +1,9 @@
+[Unit]
+Description=Force Backup Minecraft Server Daily
+
+[Timer]
+OnCalendar=daily
+Unit=mc-fbackup.service
+
+[Install]
+WantedBy=multi-user.target

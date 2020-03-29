@@ -1,0 +1,15 @@
+[Unit]
+Description=Force backup of Minecraft Server
+
+[Service]
+Type=simple
+User=minecraftuser
+Group=minecraftuser
+ExecStart=/var/minecraft/server.sh fbackup
+Restart=on-failure
+RestartSec=10s
+StartLimitInterval=10min
+StartLimitBurst=8
+
+[Install]
+WantedBy=multi-user.target
