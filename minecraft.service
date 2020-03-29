@@ -5,8 +5,8 @@ Description=Minecraft Server
 
 [Service]
 Type=forking
-User=minecraftuser
-Group=minecraftuser
+User=minecraft
+Group=minecraft
 PIDFile=/var/minecraft/server-screen.pid
 Restart=on-failure
 RestartSec=30s
