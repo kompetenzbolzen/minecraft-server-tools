@@ -3,8 +3,8 @@ Description=Force backup of Minecraft Server
 
 [Service]
 Type=simple
-User=minecraftuser
-Group=minecraftuser
+User=minecraft
+Group=minecraft
 ExecStart=/var/minecraft/server.sh fbackup
 Restart=on-failure
 RestartSec=10s
