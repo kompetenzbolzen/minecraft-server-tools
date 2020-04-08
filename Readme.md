@@ -45,6 +45,17 @@ Place `minecraft.service` in `/etc/systemd/system/`
 and run `systemctl start minecraft` to start once or
 `systemctl enable minecraft` to enable autostarting.
 
+To backup automatically, place or symlink `mc-backup.service` and
+`mc-backup.timer` in `/etc/systemd/system/`. Run the following:
+
+```
+sudo systemctl  enable mc-backup.timer
+sudo sytemctl start mc-backup.timer
+```
+
+This wil start the enable the timer upon startup and start the timer
+to run the backup after every interval specified in mc-backup.timer.
+
 ## Disclaimer
 
 The scripts are provided as-is at no warranty.

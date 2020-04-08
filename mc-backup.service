@@ -1,0 +1,15 @@
+[Unit]
+Description=Automatic backup of Minecraft Server
+
+[Service]
+Type=simple
+User=minecraft
+Group=minecraft
+ExecStart=/var/minecraft/server.sh backup
+Restart=on-failure
+RestartSec=30s
+StartLimitInterval=10min
+StartLimitBurst=3
+
+[Install]
+WantedBy=multi-user.target
