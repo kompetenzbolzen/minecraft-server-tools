@@ -1,28 +1,19 @@
 #!/bin/bash
 
-#CONFIG
-JRE_JAVA="java"
-JVM_ARGS="-Xms4096M -Xmx6144M" 
-JAR="minecraft_server.jar"
-JAR_ARGS="-nogui"
-SCREEN_WINDOW="minecraft"
-WORLD_NAME="world"
-BACKUP_NAME="mc-sad-squad"
-LOGFILE="logs/latest.log"
-PIDFILE="server-screen.pid"
-
-#HOOKS
-BACKUP_HOOK='backup_hook_example'
-
-#Constants
-CUR_YEAR=`date +"%Y"`
+if [ -e "serverconf.sh" ]
+then
+	source "serverconf.sh"
+else
+	echo No configuration found in PWD. Exiting.
+	exit 1
+fi
 
 function backup_hook_example {
 	bup -d $CUR_BACK_DIR ls -l $BACKUP_NAME/latest/var/minecraft
 }
 
 function send_cmd () {
-	tmux send -t $SCREEN_WINDOW "$1" enter
+	tmux -S $TMUX_SOCKET send -t $TMUX_WINDOW "$1" enter
 }
 
 function assert_running() {
@@ -49,9 +40,9 @@ function server_start() {
 		echo "eula=true" > "eula.txt"
 	fi
 
-	tmux new-session -s $SCREEN_WINDOW -d \
+	tmux -S $TMUX_SOCKET new-session -s $TMUX_WINDOW -d \
 		$JRE_JAVA $JVM_ARGS -jar $JAR $JAR_ARGS
-	pid=`tmux list-panes -t $SCREEN_WINDOW -F "#{pane_pid}"`
+	pid=`tmux -S $TMUX_SOCKET list-panes -t $TMUX_WINDOW -F "#{pane_pid}"`
 	echo $pid > $PIDFILE
 	echo Started with PID $pid
 	exit
@@ -81,7 +72,7 @@ function server_stop() {
 
 function server_attach() {
 	assert_not_running
-	tmux attach -t $SCREEN_WINDOW
+	tmux -S $TMUX_SOCKET attach -t $TMUX_WINDOW
 	exit
 }
 
@@ -126,7 +117,7 @@ function server_backup_safe() {
 
 	echo "Disabling autosave"
 	send_cmd "save-off"
-	send_cmd "save-all"
+	send_cmd "save-all flush"
 	echo "Waiting for save... If froze, run /save-on to re-enable autosave!!"
 	
 	sleep 1
@@ -137,7 +128,12 @@ function server_backup_safe() {
 	sleep 2
 	echo "Done! starting backup..."
 
-	create_bup_backup
+	if [ $USE_BUP = "YES" ]; then
+		create_bup_backup
+	else
+		create_backup_archive
+	fi
+	
 	local RET=$?
 
 	echo "Re-enabling auto-save"
@@ -153,7 +149,11 @@ function server_backup_safe() {
 function server_backup_unsafe() {
 	echo "No running server detected. Running Backup"
 
-	create_bup_backup
+	if [ $USE_BUP = "YES" ]; then
+		create_bup_backup
+	else
+		create_backup_archive
+	fi
 
 	if [ $? -eq 0 ]
 	then
@@ -234,7 +234,7 @@ function ls_bup() {
 	bup -d "mc-backups/${CUR_YEAR}" ls "mc-sad-squad/$1"
 }
 
-cd $(dirname $0)
+#cd $(dirname $0)
 
 case $1 in
 	"start")
