@@ -56,17 +56,18 @@ function borg_create_backup() {
     return $RETCODE
 }
 
-function borg_ls_remote() {
+# server_restore relies on output format of this function
+function borg_ls_dir() {
     export BORG_PASSCOMMAND="$BACKUP_PASSCOMMAND"
     borg list "$1" | cut -d' ' -f1
 }
 
-function borg_ls() {
+function borg_ls_all() {
     export BORG_PASSCOMMAND="$BACKUP_PASSCOMMAND"
     for BACKUP_DIR in ${BACKUP_DIRS[*]}
     do
         echo "borg: backups in \"$BACKUP_DIR\":"
-        borg list "$BACKUP_DIR"
+        borg list "$BACKUP_DIR" | cut -d' ' -f1
     done
 }
 

@@ -54,11 +54,12 @@ function bup_create_backup() {
     return $RETCODE
 }
 
-function bup_ls_remote() {
+# server_restore relies on output format of this function
+function bup_ls_dir() {
     bup -d "$(bup_local)" ls -r "$BACKUP_DIR" "$BACKUP_NAME"
 }
 
-function bup_ls() {
+function bup_ls_all() {
     for BACKUP_DIR in ${BACKUP_DIRS[*]}
     do
         echo "bup: backups in \"$BACKUP_DIR\":"

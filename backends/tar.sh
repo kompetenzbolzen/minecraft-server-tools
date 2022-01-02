@@ -40,7 +40,8 @@ function tar_create_backup() {
     return $RETCODE
 }
 
-function tar_ls_remote() {
+# server_restore relies on output format of this function
+function tar_ls_dir() {
     BACKUP_DIR="$1"
     if [[ $BACKUP_DIR == *:* ]]; then
         REMOTE="$(echo "$BACKUP_DIR" | cut -d: -f1)"
@@ -51,7 +52,7 @@ function tar_ls_remote() {
     fi
 }
 
-function tar_ls() {
+function tar_ls_all() {
     for BACKUP_DIR in ${BACKUP_DIRS[*]}
     do
         echo "Backups in $BACKUP_DIR:"

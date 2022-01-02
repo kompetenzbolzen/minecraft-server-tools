@@ -224,53 +224,68 @@ function server_backup() {
 
 function ls_backups() {
 	if [ $BACKUP_BACKEND = "bup" ]; then
-		bup_ls
+		bup_ls_all
 	elif [ $BACKUP_BACKEND = "borg" ]; then
-		borg_ls
+		borg_ls_all
 	else
-		tar_ls
+		tar_ls_all
 	fi
 }
 
-# TODO: replace dmenu with terminal-only option
+function choose_from() {
+	local items=("$@")
+	select item in "${items[@]}"; do
+		echo "$item"
+		return
+	done
+	echo ""
+}
+
 function server_restore() {
-	REMOTES=$( IFS=$'\n'; echo "${BACKUP_DIRS[*]}" )
-	REMOTE=$(echo "$REMOTES" | dmenu -l 30 -p "Select a remote to get snapshot from")
-	if [[ ! "$REMOTES" == *"${REMOTE}"* ]] || [ ! "$REMOTE" ] ; then
-		echo "No remote selected, abort"
+	echo "Select from where get the snapshot"
+	BACKUP_DIR=$(choose_from "${BACKUP_DIRS[@]}")
+	if [[ ! ${BACKUP_DIRS[*]} =~ (^|[[:space:]])"$BACKUP_DIR"($|[[:space:]]) ]]; then
+		echo "No valid backup directory selected, abort"
 		return 1
 	fi
 
 	SNAPSHOTS=$(
-	if [ $BACKUP_BACKEND = "bup" ]; then
-		bup_ls_remote "$REMOTE"
-	elif [ $BACKUP_BACKEND = "borg" ]; then
-		borg_ls_remote "$REMOTE"
-	else
-		tar_ls_remote "$REMOTE"
-	fi
+		if [ $BACKUP_BACKEND = "bup" ]; then
+			bup_ls_dir "$BACKUP_DIR"
+		elif [ $BACKUP_BACKEND = "borg" ]; then
+			borg_ls_dir "$BACKUP_DIR"
+		else
+			tar_ls_dir "$BACKUP_DIR"
+		fi
 	)
-	SNAPSHOT=$(echo "$SNAPSHOTS" | dmenu -l 30 -p "Select a snapshot to recover")
-	if [[ ! "$SNAPSHOTS" == *"${SNAPSHOT}"* ]] || [ ! "$SNAPSHOT" ] ; then
-		echo "No snapshot selected, abort"
+	if [ -z "$SNAPSHOTS" ]; then
+		echo "No snapshots found, abort"
+		return 1
+	fi
+	# convert multiline string to bash array
+	SNAPSHOTS=($(echo "$SNAPSHOTS"))
+	echo "Select a snapshot to restore"
+	SNAPSHOT=$(choose_from "${SNAPSHOTS[@]}")
+	if [[ ! ${SNAPSHOTS[*]} =~ (^|[[:space:]])"$SNAPSHOT"($|[[:space:]]) ]]; then
+		echo "No valid snapshot selected, abort"
 		return 1
 	fi
 
-	echo "Restoring snapshot \"$SNAPSHOT\" from remote \"$REMOTE\""
+	echo "Restoring snapshot \"$SNAPSHOT\" from \"$BACKUP_DIR\""
 
 	OLDWORLD_NAME=""
 	if [[ -d "$WORLD_NAME" ]]; then
-		echo "bup: Saving old world, just in case"
+		echo "Saving old world, just in case"
 		OLDWORLD_NAME="${WORLD_NAME}.old.$(date +'%F_%H-%M-%S')"
 		mv -v "$WORLD_NAME" "$OLDWORLD_NAME"
 	fi
 
 	if [ $BACKUP_BACKEND = "bup" ]; then
-		bup_restore "$REMOTE" "$SNAPSHOT"
+		bup_restore "$BACKUP_DIR" "$SNAPSHOT"
 	elif [ $BACKUP_BACKEND = "borg" ]; then
-		borg_restore "$REMOTE" "$SNAPSHOT"
+		borg_restore "$BACKUP_DIR" "$SNAPSHOT"
 	else
-		tar_restore "$REMOTE" "$SNAPSHOT"
+		tar_restore "$BACKUP_DIR" "$SNAPSHOT"
 	fi
 
 	if [ ! $? -eq 0 ]; then
