@@ -1,10 +1,10 @@
 # serverconf.sh
-# configuration file for server.sh minecraft server 
+# configuration file for server.sh minecraft server
 # management script
 
 #CONFIG
 JRE_JAVA="java"
-JVM_ARGS="-Xms4096M -Xmx6144M" 
+JVM_ARGS="-Xms4096M -Xmx6144M"
 JAR="fabric-server-launch.jar"
 JAR_ARGS="-nogui"
 
@@ -20,4 +20,3 @@ USE_BUP="NO"
 
 #Constants
 CUR_YEAR=`date +"%Y"`
-

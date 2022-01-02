@@ -8,6 +8,9 @@ else
 	exit 1
 fi
 
+source "backends/tar.sh"
+source "backends/bup.sh"
+
 function backup_hook_example {
 	bup -d $CUR_BACK_DIR ls -l $BACKUP_NAME/latest/var/minecraft
 }
@@ -81,7 +84,7 @@ function server_running() {
 		ps -p $(cat $PIDFILE) > /dev/null
 		return
 	fi
-	
+
 	false
 }
 
@@ -119,7 +122,7 @@ function server_backup_safe() {
 	send_cmd "save-off"
 	send_cmd "save-all flush"
 	echo "Waiting for save... If froze, run /save-on to re-enable autosave!!"
-	
+
 	sleep 1
 	while [ $(tail -n 3 "$LOGFILE" | grep -c "Saved the game") -lt 1 ]
 	do
@@ -133,7 +136,7 @@ function server_backup_safe() {
 	else
 		create_backup_archive
 	fi
-	
+
 	local RET=$?
 
 	echo "Re-enabling auto-save"
@@ -162,42 +165,6 @@ function server_backup_unsafe() {
 	fi
 }
 
-function create_bup_backup() {
-	BACKUP_DIR="mc-backups"
-	CUR_BACK_DIR="mc-backups/$CUR_YEAR"
-
-	if [ ! -d "$CUR_BACK_DIR" ]; then
-	mkdir -p "$CUR_BACK_DIR"
-	fi
-
-
-	bup -d "$CUR_BACK_DIR" index "$WORLD_NAME"
-	status=$?
-	if [ $status -eq 1 ]; then
-	bup -d "$CUR_BACK_DIR" init
-	bup -d "$CUR_BACK_DIR" index "$WORLD_NAME"
-	fi
-
-	bup -d "$CUR_BACK_DIR" save -n "$BACKUP_NAME" "$WORLD_NAME"
-
-	echo "Backup using bup to $CUR_BACK_DIR is complete"
-}
-
-# TODO: Make default .tar with optional bup
-function create_backup_archive() {
-	ARCHNAME="backup/$WORLD_NAME-backup_`date +%d-%m-%y-%T`.tar.gz"
-	tar -czf "$ARCHNAME" "./$WORLD_NAME"
-
-	if [ ! $? -eq 0 ]
-	then
-		echo "TAR failed. No Backup created."
-		rm $ARCHNAME #remove (probably faulty) archive
-		return 1
-	else
-		echo $ARCHNAME created.
-	fi
-}
-
 function backup_running() {
 	systemctl is-active --quiet mc-backup.service
 }
@@ -210,28 +177,24 @@ function server_backup() {
 	force=$1
 
 	if [ "$force" = "true" ]; then
-        if backup_running; then
-            echo "A backup is running. Aborting..."
-            return
-        fi
-    else
-        if fbackup_running; then
-            echo "A force backup is running. Aborting..."
-            return
-        fi
+		if backup_running; then
+			echo "A backup is running. Aborting..."
+			return
+		fi
+	else
+		if fbackup_running; then
+			echo "A force backup is running. Aborting..."
+			return
+		fi
 	fi
 
-	if server_running; then 
+	if server_running; then
 		server_backup_safe "$force"
-	else 
+	else
 		server_backup_unsafe
 	fi
 
 	exit
-}
-
-function ls_bup() {
-	bup -d "mc-backups/${CUR_YEAR}" ls "mc-sad-squad/$1"
 }
 
 #cd $(dirname $0)
