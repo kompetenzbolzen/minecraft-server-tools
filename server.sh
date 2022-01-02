@@ -10,6 +10,7 @@ fi
 
 source "backends/tar.sh"
 source "backends/bup.sh"
+source "backends/borg.sh"
 
 function backup_hook_example {
 	bup -d $CUR_BACK_DIR ls -l $BACKUP_NAME/latest/var/minecraft
@@ -121,8 +122,10 @@ function init_backup() {
 		fi
 	done
 
-	if [ $USE_BUP = "YES" ]; then
+	if [ $BACKUP_BACKEND = "bup" ]; then
 		bup_init
+	elif [ $BACKUP_BACKEND = "borg" ]; then
+		borg_init
 	else
 		tar_init
 	fi
@@ -131,8 +134,10 @@ function init_backup() {
 function create_backup() {
 	init_backup
 
-	if [ $USE_BUP = "YES" ]; then
+	if [ $BACKUP_BACKEND = "bup" ]; then
 		bup_create_backup
+	elif [ $BACKUP_BACKEND = "borg" ]; then
+		borg_create_backup
 	else
 		tar_create_backup
 	fi
@@ -218,8 +223,10 @@ function server_backup() {
 }
 
 function ls_backups() {
-	if [ $USE_BUP = "YES" ]; then
+	if [ $BACKUP_BACKEND = "bup" ]; then
 		bup_ls
+	elif [ $BACKUP_BACKEND = "borg" ]; then
+		borg_ls
 	else
 		tar_ls
 	fi
