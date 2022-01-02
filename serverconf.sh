@@ -12,6 +12,10 @@ TMUX_WINDOW="minecraft"
 TMUX_SOCKET="mc_tmux_socket"
 
 WORLD_NAME="lfja"
+if [ -f "server.properties" ]; then
+    WORLD_NAME=$(grep level-name server.properties | cut -d= -f2)
+    echo "Getting world name from server.properties: $WORLD_NAME"
+fi
 
 BACKUP_NAME="${WORLD_NAME}_backup"
 LOGFILE="logs/latest.log"
