@@ -109,6 +109,34 @@ function players_online() {
 	[ `tail -n 3 "$LOGFILE" | grep -c "There are 0"` -lt 1 ]
 }
 
+function init_backup() {
+	for BACKUP_DIR in ${BACKUP_DIRS[*]}
+	do
+		if [[ $BACKUP_DIR == *:* ]]; then
+			REMOTE="$(echo "$BACKUP_DIR" | cut -d: -f1)"
+			REMOTE_DIR="$(echo "$BACKUP_DIR" | cut -d: -f2)"
+			ssh "$REMOTE" "mkdir -p \"$REMOTE_DIR\""
+		else
+			mkdir -p "$BACKUP_DIR"
+		fi
+	done
+
+	if [ $USE_BUP = "YES" ]; then
+		bup_init
+	else
+		tar_init
+	fi
+}
+
+function create_backup() {
+	init_backup
+
+	if [ $USE_BUP = "YES" ]; then
+		bup_create_backup
+	else
+		tar_create_backup
+	fi
+}
 
 function server_backup_safe() {
 	force=$1
@@ -131,11 +159,7 @@ function server_backup_safe() {
 	sleep 2
 	echo "Done! starting backup..."
 
-	if [ $USE_BUP = "YES" ]; then
-		create_bup_backup
-	else
-		create_backup_archive
-	fi
+	create_backup
 
 	local RET=$?
 
@@ -152,11 +176,7 @@ function server_backup_safe() {
 function server_backup_unsafe() {
 	echo "No running server detected. Running Backup"
 
-	if [ $USE_BUP = "YES" ]; then
-		create_bup_backup
-	else
-		create_backup_archive
-	fi
+	create_backup
 
 	if [ $? -eq 0 ]
 	then
@@ -197,6 +217,14 @@ function server_backup() {
 	exit
 }
 
+function ls_backups() {
+	if [ $USE_BUP = "YES" ]; then
+		bup_ls
+	else
+		tar_ls
+	fi
+}
+
 #cd $(dirname $0)
 
 case $1 in
@@ -220,7 +248,7 @@ case $1 in
 		server_backup "true"
 		;;
 	"ls")
-		ls_bup $2
+		ls_backups
 		;;
 	*)
 		echo "Usage: $0 start|stop|attach|status|backup"

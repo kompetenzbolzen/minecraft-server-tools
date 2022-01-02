@@ -20,3 +20,5 @@ USE_BUP="NO"
 
 #Constants
 CUR_YEAR=`date +"%Y"`
+
+BACKUP_DIRS=(".bak/$CUR_YEAR" "user@backupserver:/path/to/backup/$CUR_YEAR")
