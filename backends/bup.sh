@@ -54,10 +54,21 @@ function bup_create_backup() {
     return $RETCODE
 }
 
+function bup_ls_remote() {
+    bup -d "$(bup_local)" ls -r "$BACKUP_DIR" "$BACKUP_NAME"
+}
+
 function bup_ls() {
     for BACKUP_DIR in ${BACKUP_DIRS[*]}
     do
         echo "bup: backups in \"$BACKUP_DIR\":"
         bup -d "$(bup_local)" ls -r "$BACKUP_DIR" --human-readable -l "$BACKUP_NAME"
     done
+}
+
+function bup_restore() {
+    REMOTE="$1"
+    SNAPSHOT="$2"
+
+    bup -d "$(bup_local)" restore -r "$REMOTE" "$BACKUP_NAME/$SNAPSHOT/$PWD/."
 }

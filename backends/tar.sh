@@ -8,7 +8,7 @@ function tar_create_backup() {
     echo "tar: backing up..."
 
     # save world to a temporary archive
-    ARCHNAME="/tmp/${BACKUP_NAME}_`date +%d-%m-%y-%T`.tar.gz"
+    ARCHNAME="/tmp/${BACKUP_NAME}_`date +%FT%H%M%S%z`.tar.gz"
     tar -czf "$ARCHNAME" "./$WORLD_NAME"
 
     if [ ! $? -eq 0 ]
@@ -40,16 +40,34 @@ function tar_create_backup() {
     return $RETCODE
 }
 
+function tar_ls_remote() {
+    BACKUP_DIR="$1"
+    if [[ $BACKUP_DIR == *:* ]]; then
+        REMOTE="$(echo "$BACKUP_DIR" | cut -d: -f1)"
+        REMOTE_DIR="$(echo "$BACKUP_DIR" | cut -d: -f2)"
+        ssh "$REMOTE" "ls -1 $REMOTE_DIR" | grep "tar.gz"
+    else
+        ls -1 "$BACKUP_DIR" | grep "tar.gz"
+    fi
+}
+
 function tar_ls() {
     for BACKUP_DIR in ${BACKUP_DIRS[*]}
     do
         echo "Backups in $BACKUP_DIR:"
-        if [[ $BACKUP_DIR == *:* ]]; then
-            REMOTE="$(echo "$BACKUP_DIR" | cut -d: -f1)"
-            REMOTE_DIR="$(echo "$BACKUP_DIR" | cut -d: -f2)"
-            ssh "$REMOTE" "ls -1sh $REMOTE_DIR" | grep "tar.gz"
-        else
-            ls -1sh "$BACKUP_DIR" | grep "tar.gz"
-        fi
+        tar_ls_remote "$BACKUP_DIR"
     done
+}
+
+function tar_restore() {
+    REMOTE="$1"
+    SNAPSHOT="$2"
+
+    scp "$REMOTE/$SNAPSHOT" "/tmp/"
+    if [ ! $? -eq 0 ]; then
+        echo "Failed to get archive from \"$REMOTE/$SNAPSHOT\""
+        return 1
+    fi
+
+    tar -xzf "/tmp/$SNAPSHOT"
 }

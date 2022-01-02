@@ -19,7 +19,7 @@ function borg_create_backup() {
         echo "borg: starting backup to \"$BACKUP_DIR\""
 
         borg create                         \
-            "${BACKUP_DIR}::${BACKUP_NAME}_{hostname}_{now}" \
+            "${BACKUP_DIR}::${BACKUP_NAME}_$(date +'%F_%H-%M-%S')" \
             "$WORLD_NAME"               \
             --filter AME                    \
             --compression lz4               \
@@ -56,6 +56,11 @@ function borg_create_backup() {
     return $RETCODE
 }
 
+function borg_ls_remote() {
+    export BORG_PASSCOMMAND="$BACKUP_PASSCOMMAND"
+    borg list "$1" | cut -d' ' -f1
+}
+
 function borg_ls() {
     export BORG_PASSCOMMAND="$BACKUP_PASSCOMMAND"
     for BACKUP_DIR in ${BACKUP_DIRS[*]}
@@ -63,4 +68,13 @@ function borg_ls() {
         echo "borg: backups in \"$BACKUP_DIR\":"
         borg list "$BACKUP_DIR"
     done
+}
+
+function borg_restore() {
+    export BORG_PASSCOMMAND="$BACKUP_PASSCOMMAND"
+    REMOTE="$1"
+    SNAPSHOT="$2"
+
+    export BORG_REPO="$REMOTE"
+    borg extract "${REMOTE}::${SNAPSHOT}"
 }

@@ -232,6 +232,56 @@ function ls_backups() {
 	fi
 }
 
+# TODO: replace dmenu with terminal-only option
+function server_restore() {
+	REMOTES=$( IFS=$'\n'; echo "${BACKUP_DIRS[*]}" )
+	REMOTE=$(echo "$REMOTES" | dmenu -l 30 -p "Select a remote to get snapshot from")
+	if [[ ! "$REMOTES" == *"${REMOTE}"* ]] || [ ! "$REMOTE" ] ; then
+		echo "No remote selected, abort"
+		return 1
+	fi
+
+	SNAPSHOTS=$(
+	if [ $BACKUP_BACKEND = "bup" ]; then
+		bup_ls_remote "$REMOTE"
+	elif [ $BACKUP_BACKEND = "borg" ]; then
+		borg_ls_remote "$REMOTE"
+	else
+		tar_ls_remote "$REMOTE"
+	fi
+	)
+	SNAPSHOT=$(echo "$SNAPSHOTS" | dmenu -l 30 -p "Select a snapshot to recover")
+	if [[ ! "$SNAPSHOTS" == *"${SNAPSHOT}"* ]] || [ ! "$SNAPSHOT" ] ; then
+		echo "No snapshot selected, abort"
+		return 1
+	fi
+
+	echo "Restoring snapshot \"$SNAPSHOT\" from remote \"$REMOTE\""
+
+	OLDWORLD_NAME=""
+	if [[ -d "$WORLD_NAME" ]]; then
+		echo "bup: Saving old world, just in case"
+		OLDWORLD_NAME="${WORLD_NAME}.old.$(date +'%F_%H-%M-%S')"
+		mv -v "$WORLD_NAME" "$OLDWORLD_NAME"
+	fi
+
+	if [ $BACKUP_BACKEND = "bup" ]; then
+		bup_restore "$REMOTE" "$SNAPSHOT"
+	elif [ $BACKUP_BACKEND = "borg" ]; then
+		borg_restore "$REMOTE" "$SNAPSHOT"
+	else
+		tar_restore "$REMOTE" "$SNAPSHOT"
+	fi
+
+	if [ ! $? -eq 0 ]; then
+		echo "Restore failed, reverting old world back"
+		rm -r "$WORLD_NAME"
+		mv -v "$OLDWORLD_NAME" "$WORLD_NAME"
+	else
+		echo "Restore finished"
+	fi
+}
+
 #cd $(dirname $0)
 
 case $1 in
@@ -247,7 +297,9 @@ case $1 in
 	"backup")
 		server_backup
 		;;
-	# TODO: Add restore command
+	"restore")
+		server_restore
+		;;
 	"status")
 		server_status
 		;;
