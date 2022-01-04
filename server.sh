@@ -111,14 +111,14 @@ function players_online() {
 }
 
 function init_backup() {
-	for BACKUP_DIR in ${BACKUP_DIRS[*]}
+	for backup_dir in ${BACKUP_DIRS[*]}
 	do
-		if [[ $BACKUP_DIR == *:* ]]; then
-			REMOTE="$(echo "$BACKUP_DIR" | cut -d: -f1)"
-			REMOTE_DIR="$(echo "$BACKUP_DIR" | cut -d: -f2)"
-			ssh "$REMOTE" "mkdir -p \"$REMOTE_DIR\""
+		if [[ $backup_dir == *:* ]]; then
+			local remote="$(echo "$backup_dir" | cut -d: -f1)"
+			local remote_dir="$(echo "$backup_dir" | cut -d: -f2)"
+			ssh "$remote" "mkdir -p \"$remote_dir\""
 		else
-			mkdir -p "$BACKUP_DIR"
+			mkdir -p "$backup_dir"
 		fi
 	done
 
@@ -144,7 +144,7 @@ function create_backup() {
 }
 
 function server_backup_safe() {
-	force=$1
+	local force=$1
 	echo "Detected running server. Checking if players online..."
 	if [ "$force" != "true" ] && ! players_online; then
 		echo "Players are not online. Not backing up."
@@ -171,8 +171,7 @@ function server_backup_safe() {
 	echo "Re-enabling auto-save"
 	send_cmd "save-on"
 
-	if [ $RET -eq 0 ]
-	then
+	if [ $RET -eq 0 ]; then
 		echo Running backup hook
 		$BACKUP_HOOK
 	fi
@@ -182,9 +181,9 @@ function server_backup_unsafe() {
 	echo "No running server detected. Running Backup"
 
 	create_backup
+	local status=$?
 
-	if [ $? -eq 0 ]
-	then
+	if [ $status -eq 0 ]; then
 		echo Running backup hook
 		$BACKUP_HOOK
 	fi
@@ -199,7 +198,7 @@ function fbackup_running() {
 }
 
 function server_backup() {
-	force=$1
+	local force=$1
 
 	if [ "$force" = "true" ]; then
 		if backup_running; then
@@ -218,8 +217,6 @@ function server_backup() {
 	else
 		server_backup_unsafe
 	fi
-
-	exit
 }
 
 function ls_backups() {
@@ -232,6 +229,7 @@ function ls_backups() {
 	fi
 }
 
+# creates a selection dialog
 function choose_from() {
 	local items=("$@")
 	select item in "${items[@]}"; do
@@ -241,60 +239,102 @@ function choose_from() {
 	echo ""
 }
 
+# checks if an item is in the array
+function is_in() {
+	local item="$1"
+	shift
+	local array=("$@")
+
+	# these :space: things allow checking that *exactly* this item is in array
+	if [[ ${array[*]} =~ (^|[[:space:]])"$item"($|[[:space:]]) ]]; then
+		return
+	fi
+	false
+}
+
 function server_restore() {
-	echo "Select from where get the snapshot"
-	BACKUP_DIR=$(choose_from "${BACKUP_DIRS[@]}")
-	if [[ ! ${BACKUP_DIRS[*]} =~ (^|[[:space:]])"$BACKUP_DIR"($|[[:space:]]) ]]; then
+	local backup_dir
+	local snapshot_index
+	local dest
+
+	if [ $# -ge 2 ]; then
+		backup_dir="$1"
+		snapshot_index=$2
+	fi
+
+	if [ $# -eq 3 ]; then
+		dest="$3"
+	fi
+
+	if [ ${#BACKUP_DIRS[@]} -eq 0 ]; then
+		echo "No backup directories found, abort"
+		return 1
+	fi
+	if [ -z $backup_dir ]; then
+		echo "From where get the snapshot?"
+		backup_dir="$(choose_from "${BACKUP_DIRS[@]}")"
+	else
+		backup_dir=${BACKUP_DIRS[backup_dir_index]}
+	fi
+	if ! is_in "$backup_dir" "${BACKUP_DIRS[@]}" ; then
 		echo "No valid backup directory selected, abort"
 		return 1
 	fi
 
-	SNAPSHOTS=$(
+	local snapshots=$(
 		if [ $BACKUP_BACKEND = "bup" ]; then
-			bup_ls_dir "$BACKUP_DIR"
+			bup_ls_dir "$backup_dir"
 		elif [ $BACKUP_BACKEND = "borg" ]; then
-			borg_ls_dir "$BACKUP_DIR"
+			borg_ls_dir "$backup_dir"
 		else
-			tar_ls_dir "$BACKUP_DIR"
+			tar_ls_dir "$backup_dir"
 		fi
 	)
-	if [ -z "$SNAPSHOTS" ]; then
+	if [ -z "$snapshots" ]; then
 		echo "No snapshots found, abort"
 		return 1
 	fi
 	# convert multiline string to bash array
-	SNAPSHOTS=($(echo "$SNAPSHOTS"))
-	echo "Select a snapshot to restore"
-	SNAPSHOT=$(choose_from "${SNAPSHOTS[@]}")
-	if [[ ! ${SNAPSHOTS[*]} =~ (^|[[:space:]])"$SNAPSHOT"($|[[:space:]]) ]]; then
+	snapshots=($(echo "$snapshots"))
+
+	local snapshot
+	if [ -z $snapshot_index ]; then
+		echo "Select which snapshot to restore"
+		snapshot=$(choose_from "${snapshots[@]}")
+	else
+		snapshot="${snapshots[snapshot_index]}"
+	fi
+	if ! is_in "$snapshot" "${snapshots[@]}" ; then
 		echo "No valid snapshot selected, abort"
 		return 1
 	fi
 
-	echo "Restoring snapshot \"$SNAPSHOT\" from \"$BACKUP_DIR\""
+	echo "Restoring snapshot \"$snapshot\" from \"$backup_dir\""
 
-	OLDWORLD_NAME=""
+	local oldworld_name=""
 	if [[ -d "$WORLD_NAME" ]]; then
-		echo "Saving old world, just in case"
-		OLDWORLD_NAME="${WORLD_NAME}.old.$(date +'%F_%H-%M-%S')"
-		mv -v "$WORLD_NAME" "$OLDWORLD_NAME"
+		echo -n "Preserving old world: "
+		oldworld_name="${WORLD_NAME}.old.$(date +'%F_%H-%M-%S')"
+		mv -v "$PWD/$WORLD_NAME" "$PWD/$oldworld_name"
 	fi
 
 	if [ $BACKUP_BACKEND = "bup" ]; then
-		bup_restore "$BACKUP_DIR" "$SNAPSHOT"
+		bup_restore "$backup_dir" "$snapshot"
 	elif [ $BACKUP_BACKEND = "borg" ]; then
-		borg_restore "$BACKUP_DIR" "$SNAPSHOT"
+		borg_restore "$backup_dir" "$snapshot"
 	else
-		tar_restore "$BACKUP_DIR" "$SNAPSHOT"
+		tar_restore "$backup_dir" "$snapshot"
 	fi
+	local status=$?
+	if [ $status -ne 0 ]; then
+		echo "Failed to restore snapshot, putting old world back where it was:"
+		rm -rv "$PWD/$WORLD_NAME"
+		mv -v "$PWD/$oldworld_name" "$PWD/$WORLD_NAME"
+		return 1
+	fi
+	echo "Snapshot restored"
 
-	if [ ! $? -eq 0 ]; then
-		echo "Restore failed, reverting old world back"
-		rm -r "$WORLD_NAME"
-		mv -v "$OLDWORLD_NAME" "$WORLD_NAME"
-	else
-		echo "Restore finished"
-	fi
+	return 0
 }
 
 #cd $(dirname $0)

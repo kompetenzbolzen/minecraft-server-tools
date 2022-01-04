@@ -7,68 +7,74 @@ function tar_init() {
 function tar_create_backup() {
     echo "tar: backing up..."
 
+	local status
+
     # save world to a temporary archive
-    ARCHNAME="/tmp/${BACKUP_NAME}_`date +%FT%H%M%S%z`.tar.gz"
-    tar -czf "$ARCHNAME" "./$WORLD_NAME"
-
-    if [ ! $? -eq 0 ]
-    then
+    local archname="/tmp/${BACKUP_NAME}_`date +%FT%H%M%S%z`.tar.gz"
+    tar -czf "$archname" "./$WORLD_NAME"
+	status=$?
+    if [ $status -ne 0 ]; then
         echo "tar: failed to save the world"
-        rm "$ARCHNAME" #remove (probably faulty) archive
+        rm "$archname" #remove (probably faulty) archive
         return 1
-    else
-        echo "tar: world saved to $ARCHNAME, pushing it to backup directories..."
     fi
+    echo "tar: world saved to $archname, pushing it to backup directories..."
 
-    RETCODE=2
-    for BACKUP_DIR in ${BACKUP_DIRS[*]}
+	# 0 if could save to at least one backup dir
+	# TODO: make more strict?
+    local retcode=1
+    for backup_dir in ${BACKUP_DIRS[*]}
     do
-        echo "tar: pushing to \"$BACKUP_DIR\""
+        echo "tar: pushing to \"$backup_dir\""
         # scp acts as cp for local destination directories
-        scp "$ARCHNAME" "$BACKUP_DIR/"
-        if [ ! $? -eq 0 ]; then
-            echo "tar: failed pushing to \"$BACKUP_DIR\", moving on"
+        scp "$archname" "$backup_dir/"
+		status=$?
+        if [ $status -ne 0 ]; then
+            echo "tar: failed pushing to \"$backup_dir\", moving on"
         else
-            RETCODE=0
+            retcode=0
         fi
      done
 
-    rm "$ARCHNAME"
+    rm "$archname"
 
     echo "tar: backup finished"
 
-    return $RETCODE
+    return $retcode
 }
 
 # server_restore relies on output format of this function
 function tar_ls_dir() {
-    BACKUP_DIR="$1"
-    if [[ $BACKUP_DIR == *:* ]]; then
-        REMOTE="$(echo "$BACKUP_DIR" | cut -d: -f1)"
-        REMOTE_DIR="$(echo "$BACKUP_DIR" | cut -d: -f2)"
-        ssh "$REMOTE" "ls -1 $REMOTE_DIR" | grep "tar.gz"
+    local backup_dir="$1"
+
+    if [[ "$backup_dir" == *:* ]]; then
+        local remote="$(echo "$backup_dir" | cut -d: -f1)"
+        local remote_dir="$(echo "$backup_dir" | cut -d: -f2)"
+        ssh "$remote" "ls -1 $remote_dir" | grep "tar.gz" | sort -r
     else
-        ls -1 "$BACKUP_DIR" | grep "tar.gz"
+        ls -1 "$backup_dir" | grep "tar.gz" | sort -r
     fi
 }
 
 function tar_ls_all() {
-    for BACKUP_DIR in ${BACKUP_DIRS[*]}
+    for backup_dir in ${BACKUP_DIRS[*]}
     do
-        echo "Backups in $BACKUP_DIR:"
-        tar_ls_remote "$BACKUP_DIR"
+        echo "tar: backups in ${backup_dir}:"
+        tar_ls_remote "$backup_dir"
     done
 }
 
 function tar_restore() {
-    REMOTE="$1"
-    SNAPSHOT="$2"
+    local remote="$1"
+    local snapshot="$2"
+	local status
 
-    scp "$REMOTE/$SNAPSHOT" "/tmp/"
-    if [ ! $? -eq 0 ]; then
-        echo "Failed to get archive from \"$REMOTE/$SNAPSHOT\""
+    scp "$remote/$snapshot" "/tmp/"
+	status=$?
+    if [ $status -ne 0 ]; then
+        echo "tar: failed to get archive from \"$remote/$snapshot\""
         return 1
     fi
 
-    tar -xzf "/tmp/$SNAPSHOT"
+    tar -xzf "/tmp/$snapshot"
 }

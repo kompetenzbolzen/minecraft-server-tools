@@ -1,19 +1,19 @@
 # use first not-remote backup directory as bup's local repository
 # defaults to ".bup"
 function bup_local() {
-    for BACKUP_DIR in ${BACKUP_DIRS[*]}
+    for backup_dir in ${BACKUP_DIRS[*]}
     do
-        if [[ $BACKUP_DIR != *:* ]]; then
-            echo "$BACKUP_DIR"
+        if [[ $backup_dir != *:* ]]; then
+            echo "$backup_dir"
             return
         fi
     done
-    echo ".bup"
+	echo ".bup"
 }
 
 function bup_init() {
     bup -d "$(bup_local)" index "$WORLD_NAME"
-    status=$?
+    local status=$?
     if [ $status -ne 0 ]; then
         echo "bup: no local repo found, creating..."
         bup -d "$(bup_local)" init -r "$(bup_local)"
@@ -27,49 +27,51 @@ function bup_create_backup() {
     bup -d "$(bup_local)" index "$WORLD_NAME"
 
     # 0 if saved to at least one non-local repository
-    RETCODE=1
-    for BACKUP_DIR in ${BACKUP_DIRS[*]}
+	# TODO make more strict?
+    local retcode=1
+    for backup_dir in ${BACKUP_DIRS[*]}
     do
-        echo "bup: backing up to \"$BACKUP_DIR\""
+        echo "bup: backing up to \"$backup_dir\""
         # try to save to remote
-        bup -d "$(bup_local)" save -r "$BACKUP_DIR" -n "$BACKUP_NAME" "$WORLD_NAME"
+        bup -d "$(bup_local)" save -r "$backup_dir" -n "$BACKUP_NAME" "$WORLD_NAME"
+		local status=$?
         # if failed - reinit remote and try again
-        if [ ! $? -eq 0 ]; then
-            echo "bup: failed backing up to \"$BACKUP_DIR\", reinitializing remote..."
-            bup -d "$(bup_local)" init -r "$BACKUP_DIR"
-            if [ ! $? -eq 0 ]; then
-                echo "bup: created remote at \"$BACKUP_DIR\""
-                bup -d "$(bup_local)" save -r "$BACKUP_DIR" -n "$BACKUP_NAME" "$WORLD_NAME"
+        if [ $status -ne 0 ]; then
+            echo "bup: failed backing up to \"$backup_dir\", reinitializing remote..."
+            bup -d "$(bup_local)" init -r "$backup_dir"
+            if [ $? -ne 0 ]; then
+                echo "bup: created remote at \"$backup_dir\""
+                bup -d "$(bup_local)" save -r "$backup_dir" -n "$BACKUP_NAME" "$WORLD_NAME"
             else
-                echo "bup: failed to make remote at \"$BACKUP_DIR\", moving on"
+                echo "bup: failed to make remote at \"$backup_dir\", moving on"
             fi
         else
-            if [ "$BACKUP_DIR" = "$(bup_local)" ]; then
-                RETCODE=0
+            if [ ! "$backup_dir" = "$(bup_local)" ]; then
+                retcode=0
             fi
         fi
     done
 
     echo "bup: backup finished"
-    return $RETCODE
+    return $retcode
 }
 
 # server_restore relies on output format of this function
 function bup_ls_dir() {
-    bup -d "$(bup_local)" ls -r "$BACKUP_DIR" "$BACKUP_NAME"
+	local backup_dir="$1"
+    bup -d "$(bup_local)" ls -r "$backup_dir" "$BACKUP_NAME" | sort -r
 }
 
 function bup_ls_all() {
-    for BACKUP_DIR in ${BACKUP_DIRS[*]}
+    for backup_dir in ${BACKUP_DIRS[*]}
     do
         echo "bup: backups in \"$BACKUP_DIR\":"
-        bup -d "$(bup_local)" ls -r "$BACKUP_DIR" --human-readable -l "$BACKUP_NAME"
+        bup -d "$(bup_local)" ls -r "$backup_dir" --human-readable -l "$BACKUP_NAME"
     done
 }
 
 function bup_restore() {
-    REMOTE="$1"
-    SNAPSHOT="$2"
-
-    bup -d "$(bup_local)" restore -r "$REMOTE" "$BACKUP_NAME/$SNAPSHOT/$PWD/."
+    local remote="$1"
+    local snapshot="$2"
+    bup -d "$(bup_local)" restore -r "$remote" "$BACKUP_NAME/$snapshot/$PWD/."
 }
