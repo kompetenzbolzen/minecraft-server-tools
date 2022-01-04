@@ -154,16 +154,17 @@ function test_backup_integrity() {
 	local retcode=0
 	for backup_dir in ${BACKUP_DIRS[*]}
 	do
-		local serverdir="$PWD"
 		local tmpdir=$(mktemp -d);
 
 		# restore most recent backup to a temporary dir
-		if ! server_restore "$serverdir/$backup_dir" 0 "$tmpdir" ; then
+		if ! server_restore "$backup_dir" 0 "$tmpdir" ; then
 			echo "Failed to get latest snapshot from \"$backup_dir\""
 			retcode=1
 		elif ! same_world "$WORLD_NAME" "$tmpdir/$WORLD_NAME" ; then
 			echo "Latest backup from \"$backup_dir\" differs from current world!"
 			retcode=1
+		else
+			echo "Backup at \"$backup_dir\" is OK"
 		fi
 
 		rm -r "$tmpdir"
@@ -171,10 +172,10 @@ function test_backup_integrity() {
 
 	if [ $retcode -ne 0 ] ; then
 		echo "Backup integrity check: FAILED"
-		return 1
+	else
+		echo "Backup integrity check: OK"
 	fi
-	echo "Backup integrity check: OK"
-	return 0
+	return $retcode
 }
 
 function create_backup() {
@@ -323,8 +324,6 @@ function server_restore() {
 	if [ -z $backup_dir ]; then
 		echo "From where get the snapshot?"
 		backup_dir="$(choose_from "${BACKUP_DIRS[@]}")"
-	else
-		backup_dir=${BACKUP_DIRS[backup_dir_index]}
 	fi
 	if ! is_in "$backup_dir" "${BACKUP_DIRS[@]}" ; then
 		echo "No valid backup directory selected, abort"

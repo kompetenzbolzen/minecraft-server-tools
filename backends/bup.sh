@@ -31,7 +31,7 @@ function bup_create_backup() {
     local retcode=1
     for backup_dir in ${BACKUP_DIRS[*]}
     do
-        echo_debug "bup: backing up to \"$backup_dir\""
+        echo "bup: backing up to \"$backup_dir\""
         # try to save to remote
         bup -d "$(bup_local)" save -r "$backup_dir" -n "$BACKUP_NAME" "$WORLD_NAME"
 		local status=$?

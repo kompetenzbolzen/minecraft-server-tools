@@ -24,7 +24,7 @@ function borg_create_backup() {
 
         trap 'echo $( date ) Backup interrupted >&2; exit 2' INT TERM
 
-        echo_debug "borg: starting backup to \"$backup_dir\""
+        echo "borg: backing up to \"$backup_dir\""
 
         borg create                         \
             "${backup_dir}::${BACKUP_NAME}_$(date +'%F_%H-%M-%S')" \

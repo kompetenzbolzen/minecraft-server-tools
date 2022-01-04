@@ -25,7 +25,7 @@ function tar_create_backup() {
     local retcode=1
     for backup_dir in ${BACKUP_DIRS[*]}
     do
-        echo_debug "tar: pushing to \"$backup_dir\""
+        echo "tar: backing up to \"$backup_dir\""
         # scp acts as cp for local destination directories
         scp "$archname" "$backup_dir/"
 		status=$?
