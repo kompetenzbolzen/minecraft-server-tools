@@ -5,12 +5,12 @@ function tar_init() {
 
 # TODO: Make default .tar with optional bup
 function tar_create_backup() {
-    echo "tar: backing up..."
+    echo_debug "tar: backing up..."
 
 	local status
 
     # save world to a temporary archive
-    local archname="/tmp/${BACKUP_NAME}_`date +%FT%H%M%S%z`.tar.gz"
+    local archname="/tmp/${BACKUP_NAME}_`date +%F_%H-%M-%S`.tar.gz"
     tar -czf "$archname" "./$WORLD_NAME"
 	status=$?
     if [ $status -ne 0 ]; then
@@ -18,14 +18,14 @@ function tar_create_backup() {
         rm "$archname" #remove (probably faulty) archive
         return 1
     fi
-    echo "tar: world saved to $archname, pushing it to backup directories..."
+    echo_debug "tar: world saved to $archname, pushing it to backup directories..."
 
 	# 0 if could save to at least one backup dir
 	# TODO: make more strict?
     local retcode=1
     for backup_dir in ${BACKUP_DIRS[*]}
     do
-        echo "tar: pushing to \"$backup_dir\""
+        echo_debug "tar: pushing to \"$backup_dir\""
         # scp acts as cp for local destination directories
         scp "$archname" "$backup_dir/"
 		status=$?
@@ -51,22 +51,23 @@ function tar_ls_dir() {
         local remote="$(echo "$backup_dir" | cut -d: -f1)"
         local remote_dir="$(echo "$backup_dir" | cut -d: -f2)"
         ssh "$remote" "ls -1 $remote_dir" | grep "tar.gz" | sort -r
-    else
+	else
         ls -1 "$backup_dir" | grep "tar.gz" | sort -r
-    fi
+	fi
 }
 
 function tar_ls_all() {
     for backup_dir in ${BACKUP_DIRS[*]}
     do
         echo "tar: backups in ${backup_dir}:"
-        tar_ls_remote "$backup_dir"
+        tar_ls_dir "$backup_dir"
     done
 }
 
 function tar_restore() {
     local remote="$1"
     local snapshot="$2"
+	local dest="$3"
 	local status
 
     scp "$remote/$snapshot" "/tmp/"
@@ -76,5 +77,5 @@ function tar_restore() {
         return 1
     fi
 
-    tar -xzf "/tmp/$snapshot"
+    tar -xzf "/tmp/$snapshot" -C "$dest"
 }

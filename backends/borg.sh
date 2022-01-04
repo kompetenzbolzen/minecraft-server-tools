@@ -16,7 +16,7 @@ function borg_create_backup() {
 
         trap 'echo $( date ) Backup interrupted >&2; exit 2' INT TERM
 
-        echo "borg: starting backup to \"$backup_dir\""
+        echo_debug "borg: starting backup to \"$backup_dir\""
 
         borg create                         \
             "${backup_dir}::${BACKUP_NAME}_$(date +'%F_%H-%M-%S')" \
@@ -27,7 +27,7 @@ function borg_create_backup() {
 
         local backup_exit=$?
 
-        echo "borg: pruning repository at \"$backup_dir\""
+        echo_debug "borg: pruning repository at \"$backup_dir\""
 
         borg prune                          \
             --prefix '{hostname}-'          \
@@ -45,7 +45,7 @@ function borg_create_backup() {
         retcode=$(( global_exit > retcode ? global_exit : retcode ))
 
         if [ ${global_exit} -eq 0 ]; then
-            echo "borg: backup and prune finished successfully"
+            echo_debug "borg: backup and prune finished successfully"
         elif [ ${global_exit} -eq 1 ]; then
             echo "borg: backup and/or prune finished with warnings"
         else
@@ -75,6 +75,7 @@ function borg_restore() {
     export BORG_PASSCOMMAND="$BACKUP_PASSCOMMAND"
     local remote="$1"
     local snapshot="$2"
+	local dest="$3"
 
     export BORG_REPO="$remote"
     borg extract "${remote}::${snapshot}"

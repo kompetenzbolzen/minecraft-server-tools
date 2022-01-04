@@ -12,6 +12,12 @@ source "backends/tar.sh"
 source "backends/bup.sh"
 source "backends/borg.sh"
 
+function echo_debug() {
+	if [ $VERBOSE -ne 0 ]; then
+		echo "$1"
+	fi
+}
+
 function backup_hook_example {
 	bup -d $CUR_BACK_DIR ls -l $BACKUP_NAME/latest/var/minecraft
 }
@@ -111,6 +117,7 @@ function players_online() {
 }
 
 function init_backup() {
+	# even though bup and borg are smart, they will not create a path for a repo
 	for backup_dir in ${BACKUP_DIRS[*]}
 	do
 		if [[ $backup_dir == *:* ]]; then
@@ -131,6 +138,42 @@ function init_backup() {
 	fi
 }
 
+function same_world() {
+	delta=$(diff -r "$1" "$2")
+	if [ -z "$delta" ] ; then
+		return 0
+	fi
+	return 1
+}
+
+# checking if latest snapshots are the same as the current world
+function test_backup_integrity() {
+	local retcode=0
+	for backup_dir in ${BACKUP_DIRS[*]}
+	do
+		local serverdir="$PWD"
+		local tmpdir=$(mktemp -d);
+
+		# restore most recent backup to a temporary dir
+		if ! server_restore "$serverdir/$backup_dir" 0 "$tmpdir" ; then
+			echo "Failed to get latest snapshot from \"$backup_dir\""
+			retcode=1
+		elif ! same_world "$WORLD_NAME" "$tmpdir/$WORLD_NAME" ; then
+			echo "Latest backup from \"$backup_dir\" differs from current world!"
+			retcode=1
+		fi
+
+		rm -r "$tmpdir"
+	done
+
+	if [ $retcode -ne 0 ] ; then
+		echo "Backup integrity check: FAILED"
+		return 1
+	fi
+	echo "Backup integrity check: OK"
+	return 0
+}
+
 function create_backup() {
 	init_backup
 
@@ -141,6 +184,8 @@ function create_backup() {
 	else
 		tar_create_backup
 	fi
+
+	test_backup_integrity
 }
 
 function server_backup_safe() {
@@ -255,13 +300,13 @@ function is_in() {
 function server_restore() {
 	local backup_dir
 	local snapshot_index
-	local dest
+	local dest="$PWD"
 
+	# parameters are only used for testing backups, so thorough checks are not needed
 	if [ $# -ge 2 ]; then
 		backup_dir="$1"
 		snapshot_index=$2
 	fi
-
 	if [ $# -eq 3 ]; then
 		dest="$3"
 	fi
@@ -270,6 +315,8 @@ function server_restore() {
 		echo "No backup directories found, abort"
 		return 1
 	fi
+
+
 	if [ -z $backup_dir ]; then
 		echo "From where get the snapshot?"
 		backup_dir="$(choose_from "${BACKUP_DIRS[@]}")"
@@ -280,6 +327,7 @@ function server_restore() {
 		echo "No valid backup directory selected, abort"
 		return 1
 	fi
+
 
 	local snapshots=$(
 		if [ $BACKUP_BACKEND = "bup" ]; then
@@ -297,6 +345,7 @@ function server_restore() {
 	# convert multiline string to bash array
 	snapshots=($(echo "$snapshots"))
 
+
 	local snapshot
 	if [ -z $snapshot_index ]; then
 		echo "Select which snapshot to restore"
@@ -309,29 +358,37 @@ function server_restore() {
 		return 1
 	fi
 
-	echo "Restoring snapshot \"$snapshot\" from \"$backup_dir\""
 
-	local oldworld_name=""
-	if [[ -d "$WORLD_NAME" ]]; then
+	echo_debug "Restoring snapshot \"$snapshot\" from \"$backup_dir\""
+
+
+	# if we restore to PWD, we will overwrite the current world, which might be harmful
+	local oldworld_name
+	if [ "$dest" = "$PWD" ] && [[ -d "$WORLD_NAME" ]]; then
 		echo -n "Preserving old world: "
 		oldworld_name="${WORLD_NAME}.old.$(date +'%F_%H-%M-%S')"
 		mv -v "$PWD/$WORLD_NAME" "$PWD/$oldworld_name"
 	fi
 
+
 	if [ $BACKUP_BACKEND = "bup" ]; then
-		bup_restore "$backup_dir" "$snapshot"
+		bup_restore "$backup_dir" "$snapshot" "$dest"
 	elif [ $BACKUP_BACKEND = "borg" ]; then
-		borg_restore "$backup_dir" "$snapshot"
+		borg_restore "$backup_dir" "$snapshot" "$dest"
 	else
-		tar_restore "$backup_dir" "$snapshot"
+		tar_restore "$backup_dir" "$snapshot" "$dest"
 	fi
 	local status=$?
-	if [ $status -ne 0 ]; then
+
+
+	# if we preseved the current world, but failed to restore the snapshot
+	if [ ! -z ${oldworld_name+x} ] && [ $status -ne 0 ]; then
 		echo "Failed to restore snapshot, putting old world back where it was:"
 		rm -rv "$PWD/$WORLD_NAME"
 		mv -v "$PWD/$oldworld_name" "$PWD/$WORLD_NAME"
 		return 1
 	fi
+
 	echo "Snapshot restored"
 
 	return 0
