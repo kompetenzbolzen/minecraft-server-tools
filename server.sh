@@ -140,6 +140,9 @@ function init_backup() {
 
 function same_world() {
 	delta=$(diff -r "$1" "$2")
+	if [ $? -ne 0 ]; then
+		return 1
+	fi
 	if [ -z "$delta" ] ; then
 		return 0
 	fi
@@ -366,8 +369,8 @@ function server_restore() {
 	local oldworld_name
 	if [ "$dest" = "$PWD" ] && [[ -d "$WORLD_NAME" ]]; then
 		echo -n "Preserving old world: "
-		oldworld_name="${WORLD_NAME}.old.$(date +'%F_%H-%M-%S')"
-		mv -v "$PWD/$WORLD_NAME" "$PWD/$oldworld_name"
+		oldworld_name="${WORLD_NAME}.old.$(date +'%F_%H-%M-%S.%N')"
+		mv -n -v "$PWD/$WORLD_NAME" "$PWD/$oldworld_name"
 	fi
 
 
@@ -389,7 +392,7 @@ function server_restore() {
 		return 1
 	fi
 
-	echo "Snapshot restored"
+	echo_debug "Snapshot restored"
 
 	return 0
 }

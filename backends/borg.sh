@@ -1,9 +1,17 @@
 function borg_init() {
+	local encryption
+	if [ -z "$BACKUP_PASSCOMMAND" ] ; then
+		echo "borg: no password given, repository is not protected"
+		encryption="none"
+	else
+		encryption="repokey-blake2"
+	fi
+
     export BORG_PASSCOMMAND="$BACKUP_PASSCOMMAND"
     for backup_dir in ${BACKUP_DIRS[*]}
     do
         # borg will check if repo exists
-        borg init --encryption=repokey-blake2 "$backup_dir"
+        borg init --encryption="$encryption" "$backup_dir"
     done
 }
 
@@ -78,5 +86,7 @@ function borg_restore() {
 	local dest="$3"
 
     export BORG_REPO="$remote"
+	cd "$dest"
     borg extract "${remote}::${snapshot}"
+	cd - > /dev/null
 }
