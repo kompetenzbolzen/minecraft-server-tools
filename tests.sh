@@ -1,10 +1,11 @@
 #!/bin/bash
 
+# these tests will create a "old" and "new/current" worlds, make backups of then and check if they actually correspond to what they supposed to
+# if tests succeed, you'll see the last line "All tests passed"
+
 source server.sh
 
-# TODO: testing remote directories
-BACKUP_DIRS=(".bak")
-mkdir ".bak"
+WORLD_NAME="test_world"
 
 function test_backend() {
 	BACKUP_BACKEND="$1"
@@ -20,6 +21,8 @@ function test_backend() {
 	function cleanup() {
 		rm -r "$DIR"
 	}
+	# TODO: testing remote directories
+	BACKUP_DIRS=( "$PWD/.bak" )
 
 	# make a "world" with some volatile data
 	function make_world() {
@@ -50,17 +53,10 @@ function test_backend() {
 		exit
 	fi
 
-	function same_world() {
-		delta=$(diff -r "$DIR/$1" "$DIR/$2")
-		if [ -z "$delta" ] ; then
-			return 0
-		fi
-		return 1
-	}
 
 	# corrupting current (new) world
 	find "$DIR/$WORLD_NAME" -type f -exec shred {} \;
-	if same_world "$WORLD_NAME" "$new_world" ; then
+	if same_world "$DIR/$WORLD_NAME" "$DIR/$new_world" ; then
 		echo "Failed to corrupt new world"
 		cleanup
 		exit
@@ -70,13 +66,13 @@ function test_backend() {
 	# restore new backup
 	server_restore "${BACKUP_DIRS[0]}" 0
 	# must be: new backup == new world
-	if ! same_world "$WORLD_NAME" "$new_world" ; then
+	if ! same_world "$DIR/$WORLD_NAME" "$DIR/$new_world" ; then
 		echo "${BACKUP_BACKEND}: new backup != new world"
 		cleanup
 		exit
 	fi
 	# must be: new backup != old world
-	if same_world "$WORLD_NAME" "$old_world" ; then
+	if same_world "$DIR/$WORLD_NAME" "$DIR/$old_world" ; then
 		echo "${BACKUP_BACKEND}: new backup == old world"
 		cleanup
 		exit
@@ -91,13 +87,13 @@ function test_backend() {
 		server_restore "${BACKUP_DIRS[0]}" 1
 	fi
 	# must be: old backup == old world
-	if ! same_world "$WORLD_NAME" "$old_world" ; then
+	if ! same_world "$DIR/$WORLD_NAME" "$DIR/$old_world" ; then
 		echo "${BACKUP_BACKEND}: old backup != old world"
 		cleanup
 		exit
 	fi
 	# must be: old backup != new world
-	if same_world "$WORLD_NAME" "$new_world" ; then
+	if same_world "$DIR/$WORLD_NAME" "$DIR/$new_world" ; then
 		echo "${BACKUP_BACKEND}: old backup == new world"
 		cleanup
 		exit
