@@ -55,13 +55,17 @@ function test_backend() {
 		exit
 	fi
 
-	ls_backups
-
+	local backups="$(server_ls_backups)"
+	if [ -z "$backups" ]; then
+		log_error "Found no backups"
+		cleanup
+		exit
+	fi
 
 	# corrupting current (new) world
 	find "$DIR/$WORLD_NAME" -type f -exec shred {} \;
 	if same_world "$DIR/$WORLD_NAME" "$DIR/$new_world" ; then
-		echo "Failed to corrupt new world"
+		log_error "Failed to corrupt new world"
 		cleanup
 		exit
 	fi
@@ -71,13 +75,13 @@ function test_backend() {
 	server_restore "${BACKUP_DIRS[0]}" 0
 	# must be: new backup == new world
 	if ! same_world "$DIR/$WORLD_NAME" "$DIR/$new_world" ; then
-		echo "${BACKUP_BACKEND}: new backup != new world"
+		log_error "${BACKUP_BACKEND}: new backup != new world"
 		cleanup
 		exit
 	fi
 	# must be: new backup != old world
 	if same_world "$DIR/$WORLD_NAME" "$DIR/$old_world" ; then
-		echo "${BACKUP_BACKEND}: new backup == old world"
+		log_error "${BACKUP_BACKEND}: new backup == old world"
 		cleanup
 		exit
 	fi
@@ -92,13 +96,13 @@ function test_backend() {
 	fi
 	# must be: old backup == old world
 	if ! same_world "$DIR/$WORLD_NAME" "$DIR/$old_world" ; then
-		echo "${BACKUP_BACKEND}: old backup != old world"
+		log_error "${BACKUP_BACKEND}: old backup != old world"
 		cleanup
 		exit
 	fi
 	# must be: old backup != new world
 	if same_world "$DIR/$WORLD_NAME" "$DIR/$new_world" ; then
-		echo "${BACKUP_BACKEND}: old backup == new world"
+		log_error "${BACKUP_BACKEND}: old backup == new world"
 		cleanup
 		exit
 	fi

@@ -1,7 +1,7 @@
 function borg_init() {
 	local encryption
 	if [ -z "$BACKUP_PASSCOMMAND" ] ; then
-		echo "borg: no password given, repository is not protected"
+		log_info "borg: no password given, repository is not protected"
 		encryption="none"
 	else
 		encryption="repokey-blake2"
@@ -10,9 +10,10 @@ function borg_init() {
     export BORG_PASSCOMMAND="$BACKUP_PASSCOMMAND"
     for backup_dir in ${BACKUP_DIRS[*]}
     do
+		log_debug "Initializing repo at $backup_dir "
         # borg will check if repo exists
         borg init --encryption="$encryption" "$backup_dir"
-    done
+	done
 }
 
 function borg_create_backup() {
@@ -22,9 +23,9 @@ function borg_create_backup() {
     do
         export BORG_REPO="$backup_dir"
 
-        trap 'echo $( date ) Backup interrupted >&2; exit 2' INT TERM
+        trap 'echo [WARNING] $( date ) Backup interrupted >&2; exit 2' INT TERM
 
-        echo "borg: backing up to \"$backup_dir\""
+        log_info "borg: backing up to \"$backup_dir\""
 
         borg create                         \
             "${backup_dir}::${BACKUP_NAME}_$(date +'%F_%H-%M-%S')" \
@@ -35,7 +36,7 @@ function borg_create_backup() {
 
         local backup_exit=$?
 
-        echo_debug "borg: pruning repository at \"$backup_dir\""
+        log_debug "borg: pruning repository at \"$backup_dir\""
 
         borg prune                          \
             --prefix '{hostname}-'          \
@@ -53,11 +54,11 @@ function borg_create_backup() {
         retcode=$(( global_exit > retcode ? global_exit : retcode ))
 
         if [ ${global_exit} -eq 0 ]; then
-            echo_debug "borg: backup and prune finished successfully"
+            log_debug "borg: backup and prune finished successfully"
         elif [ ${global_exit} -eq 1 ]; then
-            echo "borg: backup and/or prune finished with warnings"
+            log_info "borg: backup and/or prune finished with warnings"
         else
-            echo "borg: backup and/or prune finished with errors"
+            log_error "borg: backup and/or prune finished with errors"
         fi
         #exit ${global_exit}
     done
@@ -65,18 +66,9 @@ function borg_create_backup() {
 }
 
 # server_restore relies on output format of this function
-function borg_ls_dir() {
+function borg_ls() {
     export BORG_PASSCOMMAND="$BACKUP_PASSCOMMAND"
     borg list "$1" | cut -d' ' -f1 | sort -r
-}
-
-function borg_ls_all() {
-    export BORG_PASSCOMMAND="$BACKUP_PASSCOMMAND"
-    for backup_dir in ${BACKUP_DIRS[*]}
-    do
-        echo "borg: backups in \"$backup_dir\":"
-        borg list "$backup_dir" | cut -d' ' -f1
-    done
 }
 
 function borg_restore() {

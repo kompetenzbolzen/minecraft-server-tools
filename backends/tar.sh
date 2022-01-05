@@ -5,7 +5,7 @@ function tar_init() {
 
 # TODO: Make default .tar with optional bup
 function tar_create_backup() {
-    echo_debug "tar: backing up..."
+    log_debug "tar: backing up..."
 
 	local status
 
@@ -14,23 +14,23 @@ function tar_create_backup() {
     tar -czf "$archname" "./$WORLD_NAME"
 	status=$?
     if [ $status -ne 0 ]; then
-        echo "tar: failed to save the world"
+        log_error "tar: failed to save the world"
         rm "$archname" #remove (probably faulty) archive
         return 1
     fi
-    echo_debug "tar: world saved to $archname, pushing it to backup directories..."
+    log_debug "tar: world saved to $archname, pushing it to backup directories..."
 
 	# 0 if could save to at least one backup dir
 	# TODO: make more strict?
     local retcode=1
     for backup_dir in ${BACKUP_DIRS[*]}
     do
-        echo "tar: backing up to \"$backup_dir\""
+        log_info "tar: backing up to \"$backup_dir\""
         # scp acts as cp for local destination directories
         scp "$archname" "$backup_dir/"
 		status=$?
         if [ $status -ne 0 ]; then
-            echo "tar: failed pushing to \"$backup_dir\", moving on"
+            log_error "tar: failed pushing to \"$backup_dir\", moving on"
         else
             retcode=0
         fi
@@ -38,13 +38,13 @@ function tar_create_backup() {
 
     rm "$archname"
 
-    echo "tar: backup finished"
+    log_debug "tar: backup finished"
 
     return $retcode
 }
 
 # server_restore relies on output format of this function
-function tar_ls_dir() {
+function tar_ls() {
     local backup_dir="$1"
 
     if [[ "$backup_dir" == *:* ]]; then
@@ -56,14 +56,6 @@ function tar_ls_dir() {
 	fi
 }
 
-function tar_ls_all() {
-    for backup_dir in ${BACKUP_DIRS[*]}
-    do
-        echo "tar: backups in ${backup_dir}:"
-        tar_ls_dir "$backup_dir"
-    done
-}
-
 function tar_restore() {
     local remote="$1"
     local snapshot="$2"
@@ -73,7 +65,7 @@ function tar_restore() {
     scp "$remote/$snapshot" "/tmp/"
 	status=$?
     if [ $status -ne 0 ]; then
-        echo "tar: failed to get archive from \"$remote/$snapshot\""
+        log_error "tar: failed to get archive from \"$remote/$snapshot\""
         return 1
     fi
 

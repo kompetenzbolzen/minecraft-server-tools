@@ -4,7 +4,7 @@ if [ -e "serverconf.sh" ]
 then
 	source "serverconf.sh"
 else
-	echo No configuration found in PWD. Exiting.
+	log_error "No configuration found in PWD. Exiting."
 	exit 1
 fi
 
@@ -12,14 +12,16 @@ source "backends/tar.sh"
 source "backends/bup.sh"
 source "backends/borg.sh"
 
-function echo_debug() {
+function log_debug() {
 	if [ $VERBOSE -ne 0 ]; then
-		echo "$1"
+		printf "[DEBUG] $1\n" >&2
 	fi
 }
+log_info() { printf "[INFO] $1\n" ; }
+log_error() { printf "[ERROR] $1\n" >&2 ; }
 
 function backup_hook_example {
-	bup -d $CUR_BACK_DIR ls -l $BACKUP_NAME/latest/var/minecraft
+	bup -d $CUR_BACK_DIR ls -l "$BACKUP_NAME/latest/var/minecraft"
 }
 
 function send_cmd () {
@@ -28,7 +30,7 @@ function send_cmd () {
 
 function assert_not_running() {
 	if server_running; then
-		echo "It seems a server is already running. If this is not the case,\
+		log_info "It seems a server is already running. If this is not the case,\
 			manually attach to the running screen and close it."
 		exit 1
 	fi
@@ -36,7 +38,7 @@ function assert_not_running() {
 
 function assert_running() {
 	if ! server_running; then
-		echo "Server not running"
+		log_info "Server not running"
 		exit 1
 	fi
 }
@@ -46,7 +48,7 @@ function server_start() {
 
 	if [ ! -f "eula.txt" ]
 	then
-		echo "eula.txt not found. Creating and accepting EULA."
+		log_info "eula.txt not found. Creating and accepting EULA."
 		echo "eula=true" > "eula.txt"
 	fi
 
@@ -54,7 +56,7 @@ function server_start() {
 		$JRE_JAVA $JVM_ARGS -jar $JAR $JAR_ARGS
 	pid=`tmux -S $TMUX_SOCKET list-panes -t $TMUX_WINDOW -F "#{pane_pid}"`
 	echo $pid > $PIDFILE
-	echo Started with PID $pid
+	log_info "Started with PID $pid"
 	exit
 }
 
@@ -73,7 +75,7 @@ function server_stop() {
 		RET=$?
 	done
 
-	echo "stopped the server"
+	log_info "stopped the server"
 
 	rm -f $PIDFILE
 
@@ -98,9 +100,9 @@ function server_running() {
 function server_status() {
 	if server_running
 	then
-		echo "Server is running"
+		log_info "Server is running"
 	else
-		echo "Server is not running"
+		log_info "Server is not running"
 	fi
 	exit
 }
@@ -116,6 +118,21 @@ function players_online() {
 	[ `tail -n 3 "$LOGFILE" | grep -c "There are 0"` -lt 1 ]
 }
 
+function backup_backend_run() {
+	local cmd
+	# could do ${BACKUP_BACKEND}_$1 though
+	if [ $BACKUP_BACKEND = "bup" ]; then
+		cmd="bup"
+	elif [ $BACKUP_BACKEND = "borg" ]; then
+		cmd="borg"
+	else
+		cmd="tar"
+	fi
+	cmd="${cmd}_$1"
+	log_debug "Backup backend command: \"$cmd\""
+	eval "$cmd"
+}
+
 function init_backup() {
 	# even though bup and borg are smart, they will not create a path for a repo
 	for backup_dir in ${BACKUP_DIRS[*]}
@@ -129,13 +146,7 @@ function init_backup() {
 		fi
 	done
 
-	if [ $BACKUP_BACKEND = "bup" ]; then
-		bup_init
-	elif [ $BACKUP_BACKEND = "borg" ]; then
-		borg_init
-	else
-		tar_init
-	fi
+	backup_backend_run "init"
 }
 
 function same_world() {
@@ -158,52 +169,44 @@ function test_backup_integrity() {
 
 		# restore most recent backup to a temporary dir
 		if ! server_restore "$backup_dir" 0 "$tmpdir" ; then
-			echo "Failed to get latest snapshot from \"$backup_dir\""
+			log_error "Failed to get latest snapshot from \"$backup_dir\""
 			retcode=1
 		elif ! same_world "$WORLD_NAME" "$tmpdir/$WORLD_NAME" ; then
-			echo "Latest backup from \"$backup_dir\" differs from current world!"
+			log_error "Latest backup from \"$backup_dir\" differs from current world!"
 			retcode=1
 		else
-			echo "Backup at \"$backup_dir\" is OK"
+			log_info "Backup at \"$backup_dir\" is OK"
 		fi
 
 		rm -r "$tmpdir"
 	done
 
 	if [ $retcode -ne 0 ] ; then
-		echo "Backup integrity check: FAILED"
+		log_error "Backup integrity check: FAILED"
 	else
-		echo "Backup integrity check: OK"
+		log_info "Backup integrity check: OK"
 	fi
 	return $retcode
 }
 
 function create_backup() {
 	init_backup
-
-	if [ $BACKUP_BACKEND = "bup" ]; then
-		bup_create_backup
-	elif [ $BACKUP_BACKEND = "borg" ]; then
-		borg_create_backup
-	else
-		tar_create_backup
-	fi
-
+	backup_backend_run "create_backup"
 	test_backup_integrity
 }
 
 function server_backup_safe() {
 	local force=$1
-	echo "Detected running server. Checking if players online..."
+	log_info "Detected running server. Checking if players online..."
 	if [ "$force" != "true" ] && ! players_online; then
-		echo "Players are not online. Not backing up."
+		log_info "Players are not online. Not backing up."
 		return
 	fi
 
-	echo "Disabling autosave"
+	log_info "Disabling autosave"
 	send_cmd "save-off"
 	send_cmd "save-all flush"
-	echo "Waiting for save... If froze, run /save-on to re-enable autosave!!"
+	log_info "Waiting for save... If froze, run /save-on to re-enable autosave!!"
 
 	sleep 1
 	while [ $(tail -n 3 "$LOGFILE" | grep -c "Saved the game") -lt 1 ]
@@ -211,29 +214,29 @@ function server_backup_safe() {
 		sleep 1
 	done
 	sleep 2
-	echo "Done! starting backup..."
+	log_info "Done! starting backup..."
 
 	create_backup
 
 	local RET=$?
 
-	echo "Re-enabling auto-save"
+	log_info "Re-enabling auto-save"
 	send_cmd "save-on"
 
 	if [ $RET -eq 0 ]; then
-		echo Running backup hook
+		log_info "Running backup hook"
 		$BACKUP_HOOK
 	fi
 }
 
 function server_backup_unsafe() {
-	echo "No running server detected. Running Backup"
+	log_info "No running server detected. Running Backup"
 
 	create_backup
 	local status=$?
 
 	if [ $status -eq 0 ]; then
-		echo Running backup hook
+		log_info "Running backup hook"
 		$BACKUP_HOOK
 	fi
 }
@@ -251,12 +254,12 @@ function server_backup() {
 
 	if [ "$force" = "true" ]; then
 		if backup_running; then
-			echo "A backup is running. Aborting..."
+			log_info "A backup is running. Aborting..."
 			return
 		fi
 	else
 		if fbackup_running; then
-			echo "A force backup is running. Aborting..."
+			log_info "A force backup is running. Aborting..."
 			return
 		fi
 	fi
@@ -268,14 +271,12 @@ function server_backup() {
 	fi
 }
 
-function ls_backups() {
-	if [ $BACKUP_BACKEND = "bup" ]; then
-		bup_ls_all
-	elif [ $BACKUP_BACKEND = "borg" ]; then
-		borg_ls_all
-	else
-		tar_ls_all
-	fi
+function server_ls_backups() {
+	for backup_dir in ${BACKUP_DIRS[*]}
+	do
+		log_info "backups in ${backup_dir}:"
+		backup_backend_run "ls \"$backup_dir\""
+	done
 }
 
 # creates a selection dialog
@@ -285,7 +286,6 @@ function choose_from() {
 		echo "$item"
 		return
 	done
-	echo ""
 }
 
 # checks if an item is in the array
@@ -318,32 +318,26 @@ function server_restore() {
 	fi
 
 	if [ ${#BACKUP_DIRS[@]} -eq 0 ]; then
-		echo "No backup directories found, abort"
+		log_error "No backup directories found, abort"
 		return 1
 	fi
 
 
 	if [ -z $backup_dir ]; then
-		echo "From where get the snapshot?"
+		log_info "From where get the snapshot?"
 		backup_dir="$(choose_from "${BACKUP_DIRS[@]}")"
 	fi
 	if ! is_in "$backup_dir" "${BACKUP_DIRS[@]}" ; then
-		echo "No valid backup directory selected, abort"
+		log_error "No valid backup directory selected, abort"
 		return 1
 	fi
 
 
-	local snapshots=$(
-		if [ $BACKUP_BACKEND = "bup" ]; then
-			bup_ls_dir "$backup_dir"
-		elif [ $BACKUP_BACKEND = "borg" ]; then
-			borg_ls_dir "$backup_dir"
-		else
-			tar_ls_dir "$backup_dir"
-		fi
-	)
+	local snapshots="$( backup_backend_run "ls \"$backup_dir\"" )"
+	log_debug "Snapshots found:"
+	log_debug "$snapshots"
 	if [ -z "$snapshots" ]; then
-		echo "No snapshots found, abort"
+		log_error "No snapshots found, abort"
 		return 1
 	fi
 	# convert multiline string to bash array
@@ -352,47 +346,40 @@ function server_restore() {
 
 	local snapshot
 	if [ -z $snapshot_index ]; then
-		echo "Select which snapshot to restore"
+		log_info "Select which snapshot to restore"
 		snapshot=$(choose_from "${snapshots[@]}")
 	else
 		snapshot="${snapshots[snapshot_index]}"
 	fi
 	if ! is_in "$snapshot" "${snapshots[@]}" ; then
-		echo "No valid snapshot selected, abort"
+		log_error "No valid snapshot selected, abort"
 		return 1
 	fi
 
 
-	echo_debug "Restoring snapshot \"$snapshot\" from \"$backup_dir\""
+	log_debug "Restoring snapshot \"$snapshot\" from \"$backup_dir\""
 
 	# if we restore to PWD, we will overwrite the current world, which might be harmful
 	local oldworld_name
 	if [ "$dest" = "$PWD" ] && [[ -d "$WORLD_NAME" ]]; then
-		echo -n "Preserving old world: "
 		oldworld_name="${WORLD_NAME}.old.$(date +'%F_%H-%M-%S.%N')"
-		mv -n -v "$PWD/$WORLD_NAME" "$PWD/$oldworld_name"
+		log_info "Preserving old world: $(mv -n -v "$PWD/$WORLD_NAME" "$PWD/$oldworld_name")"
 	fi
 
 
-	if [ $BACKUP_BACKEND = "bup" ]; then
-		bup_restore "$backup_dir" "$snapshot" "$dest"
-	elif [ $BACKUP_BACKEND = "borg" ]; then
-		borg_restore "$backup_dir" "$snapshot" "$dest"
-	else
-		tar_restore "$backup_dir" "$snapshot" "$dest"
-	fi
+	backup_backend_run "restore \"$backup_dir\" \"$snapshot\" \"$dest\""
 	local status=$?
 
 
 	# if we preseved the current world, but failed to restore the snapshot
 	if [ ! -z ${oldworld_name+x} ] && [ $status -ne 0 ]; then
-		echo "Failed to restore snapshot, putting old world back where it was:"
+		log_error "Failed to restore snapshot, putting old world back where it was:"
 		rm -rv "$PWD/$WORLD_NAME"
 		mv -v "$PWD/$oldworld_name" "$PWD/$WORLD_NAME"
 		return 1
 	fi
 
-	echo_debug "Snapshot restored"
+	log_debug "Snapshot restored"
 
 	return 0
 }
@@ -422,7 +409,7 @@ case $1 in
 		server_backup "true"
 		;;
 	"ls")
-		ls_backups
+		server_ls_backups
 		;;
 	*)
 		echo "Usage: $0 start|stop|attach|status|backup"
