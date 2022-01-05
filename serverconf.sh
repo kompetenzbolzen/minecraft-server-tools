@@ -33,7 +33,7 @@ CUR_YEAR=`date +"%Y"`
 # IMPORTANT: local paths must be absolute!
 BACKUP_DIRS=( "$PWD/.bak/$CUR_YEAR" "user@backupserver:/path/to/backup/$CUR_YEAR" )
 
-# borg repositories are password protected by default
+# borg repository could be pasword-protected
 # to avoid having to manually type password, borg can run a command that should echo a password
-BACKUP_PASSCOMMAND="echo superstrongpassword"
-#BACKUP_PASSCOMMAND="pass passwordname
+#BACKUP_PASSCOMMAND="echo superstrongpassword"
+#BACKUP_PASSCOMMAND="pass passwordname"
