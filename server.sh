@@ -26,7 +26,7 @@ function send_cmd () {
 	tmux -S $TMUX_SOCKET send -t $TMUX_WINDOW "$1" enter
 }
 
-function assert_running() {
+function assert_not_running() {
 	if server_running; then
 		echo "It seems a server is already running. If this is not the case,\
 			manually attach to the running screen and close it."
@@ -34,7 +34,7 @@ function assert_running() {
 	fi
 }
 
-function assert_not_running() {
+function assert_running() {
 	if ! server_running; then
 		echo "Server not running"
 		exit 1
@@ -42,7 +42,7 @@ function assert_not_running() {
 }
 
 function server_start() {
-	assert_running
+	assert_not_running
 
 	if [ ! -f "eula.txt" ]
 	then
@@ -62,7 +62,7 @@ function server_stop() {
 	# Allow success even if server is not running
 	#trap "exit 0" EXIT
 
-	assert_not_running
+	assert_running
 	send_cmd "stop"
 
 	local RET=1
@@ -81,7 +81,7 @@ function server_stop() {
 }
 
 function server_attach() {
-	assert_not_running
+	assert_running
 	tmux -S $TMUX_SOCKET attach -t $TMUX_WINDOW
 	exit
 }
@@ -302,6 +302,8 @@ function is_in() {
 }
 
 function server_restore() {
+	assert_not_running
+
 	local backup_dir
 	local snapshot_index
 	local dest="$PWD"
@@ -362,7 +364,6 @@ function server_restore() {
 
 
 	echo_debug "Restoring snapshot \"$snapshot\" from \"$backup_dir\""
-
 
 	# if we restore to PWD, we will overwrite the current world, which might be harmful
 	local oldworld_name
