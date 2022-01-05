@@ -66,7 +66,7 @@ function bup_ls_dir() {
 function bup_ls_all() {
     for backup_dir in ${BACKUP_DIRS[*]}
     do
-        echo "bup: backups in \"$BACKUP_DIR\":"
+        echo "bup: backups in \"$backup_dir\":"
         bup -d "$(bup_local)" ls -r "$backup_dir" --human-readable -l "$BACKUP_NAME"
     done
 }

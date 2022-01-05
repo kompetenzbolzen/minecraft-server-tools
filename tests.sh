@@ -5,6 +5,8 @@
 
 source server.sh
 
+VERBOSE=1
+
 WORLD_NAME="test_world"
 
 function test_backend() {
@@ -52,6 +54,8 @@ function test_backend() {
 		cleanup
 		exit
 	fi
+
+	ls_backups
 
 
 	# corrupting current (new) world
@@ -102,13 +106,13 @@ function test_backend() {
 	cleanup
 }
 
-echo "Testing tar backend"
+printf "\n\n\nTesting tar backend\n"
 test_backend "tar"
 
-echo "Testing bup backend"
+printf "\n\n\nTesting bup backend\n"
 test_backend "bup"
 
-echo "Testing borg backend"
+printf "\n\n\nTesting borg backend\n"
 test_backend "borg"
 
-echo "All tests passed"
+printf "\n\n\nAll tests passed\n"
