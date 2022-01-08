@@ -302,8 +302,6 @@ function is_in() {
 }
 
 function server_restore() {
-	assert_not_running
-
 	local backup_dir
 	local snapshot_index
 	local dest="$PWD"
@@ -315,6 +313,10 @@ function server_restore() {
 	fi
 	if [ $# -eq 3 ]; then
 		dest="$3"
+	fi
+
+	if [ "$dest" = "$PWD" ]; then
+		assert_not_running
 	fi
 
 	if [ ${#BACKUP_DIRS[@]} -eq 0 ]; then
