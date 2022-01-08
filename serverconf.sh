@@ -37,3 +37,8 @@ BACKUP_DIRS=( "$PWD/.bak/$CUR_YEAR" "user@backupserver:/path/to/backup/$CUR_YEAR
 # to avoid having to manually type password, borg can run a command that should echo a password
 #BACKUP_PASSCOMMAND="echo superstrongpassword"
 #BACKUP_PASSCOMMAND="pass passwordname"
+
+# 0 - don't check backups after creation
+# 1 - check only local backups
+# 2 - check local and remote backups (may take a while if world is large and connection is slow)
+BACKUP_CHECK_MODE=1

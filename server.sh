@@ -162,9 +162,19 @@ function same_world() {
 
 # checking if latest snapshots are the same as the current world
 function test_backup_integrity() {
+	if [ $BACKUP_CHECK_MODE = 0 ]; then
+		log_info "Backup integrity check: skipped"
+		return 0
+	fi
+
 	local retcode=0
 	for backup_dir in ${BACKUP_DIRS[*]}
 	do
+		if [[ "$backup_dir" == *:* ]] && [ $BACKUP_CHECK_MODE = 1 ]; then
+			log_info "Skipping check of remote backup at $backup_dir"
+			continue
+		fi
+
 		local tmpdir=$(mktemp -d);
 
 		# restore most recent backup to a temporary dir
